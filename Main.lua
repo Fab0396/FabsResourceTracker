@@ -1873,7 +1873,7 @@ local function CreateMinimapButton()
         local broker = LDB:NewDataObject("FabsResourceTracker", {
             type  = "launcher",
             label = "Fabs Resource Tracker",
-            icon  = "Interface\\Icons\\INV_Drink_27",
+            icon  = "Interface\\AddOns\\FabsResourceTracker\\icon",
             OnClick = function(_, mouseBtn)
                 if mouseBtn == "LeftButton" then
                     if CT.ToggleGUI then CT:ToggleGUI() end
@@ -1907,7 +1907,8 @@ local function CreateMinimapButton()
     -- Icon only — no bg, no mask, no ring
     local icon=btn:CreateTexture(nil,"ARTWORK")
     icon:SetAllPoints(btn)
-    icon:SetTexCoord(0.07,0.93,0.07,0.93)
+    icon:SetTexture("Interface\\AddOns\\FabsResourceTracker\\icon")
+    icon:SetTexCoord(0,1,0,1)
     btn._icon=icon
 
     -- Subtle glow on hover (icon-sized, not a ring)
@@ -1973,19 +1974,15 @@ end
 
 local function UpdateMinimapIcon()
     if not CT.MinimapButton then return end
-    local id=(select(2,UnitClass("player"))=="WARLOCK"
-              and C_SpellBook.IsSpellKnown(386689)) and 224464 or 5512
-    local tex=GetItemIcon(id)
+    local tex = "Interface\\AddOns\\FabsResourceTracker\\icon"
     if CT._usingLDB then
-        -- Update broker icon texture
         local LDB = LibStub and LibStub("LibDataBroker-1.1", true)
         local broker = LDB and LDB:GetDataObjectByName("FabsResourceTracker")
-        if broker and tex then broker.icon = tex end
-        -- Also update the physical button if LibDBIcon exposed it
+        if broker then broker.icon = tex end
         if CT.MinimapButton and CT.MinimapButton.icon then
             CT.MinimapButton.icon:SetTexture(tex)
         end
-    elseif CT.MinimapButton and CT.MinimapButton._icon and tex then
+    elseif CT.MinimapButton._icon then
         CT.MinimapButton._icon:SetTexture(tex)
     end
 end
