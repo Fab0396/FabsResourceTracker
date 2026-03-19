@@ -213,12 +213,39 @@ local GLOBAL_DEFAULTS = {
         LabelPos      = "TOP",
         TrackedItems  = {},
         IconStrata    = "HIGH",
+        SortMode      = "normal",
         MaxIconsPerRow   = 0,
         WrapDirection    = "DOWN",
         WrapGrowDirection= "RIGHT",
         WrapAnchor       = "FIRST",
         RowSpacing       = 4,
+        MidnightAutoTrackEnabled = false,
+        MidnightAutoTrack        = {},
     },
+}
+
+CT.MIDNIGHT_S1_ONUSE = {
+    [249197] = {label="Light Company Guidon",         cooldown=90,  duration=15},
+    [249340] = {label="Wraps of Cosmic Madness",      cooldown=120, duration=2},
+    [249974] = {label="Vaelgor's Final Stare",        cooldown=90,  duration=15},
+    [249345] = {label="Ranger-Captain's Insignia",    cooldown=180, duration=0},
+    [249808] = {label="Litany of Lightblind Wrath",   cooldown=90,  duration=30},
+    [249339] = {label="Gloom-Spattered Dreadscale",   cooldown=120, duration=0},
+    [250144] = {label="Emberwing Feather",            cooldown=120, duration=15},
+    [250226] = {label="Latch's Crooked Hook",         cooldown=90,  duration=0},
+    [193719] = {label="Dragon Games Equipment",       cooldown=120, duration=0},
+    [193701] = {label="Algeth'ar Puzzle Box",         cooldown=120, duration=20},
+    [50259]  = {label="Nevermelting Ice Crystal",     cooldown=180, duration=20},
+    [151307] = {label="Void Stalker's Contract",      cooldown=90,  duration=0},
+    [193718] = {label="Emerald Coach's Whistle",      cooldown=1,   duration=10},
+    [151340] = {label="Echo of L'ura",                cooldown=180, duration=45},
+    [252411] = {label="Radiant Sunstone",             cooldown=120, duration=20},
+    [252421] = {label="Rotting Globule",              cooldown=120, duration=15},
+    [151312] = {label="Ampoule of Pure Void",         cooldown=90,  duration=10},
+    [252418] = {label="Solar Core Igniter",           cooldown=90,  duration=15},
+    [249806] = {label="Radiant Plume",                cooldown=300, duration=60},
+    [260235] = {label="Umbral Plume",                 cooldown=300, duration=60},
+    [251786] = {label="Ever-Collapsing Void Fissure", cooldown=120, duration=10},
 }
 
 local WIN_DEFAULTS = {
@@ -742,6 +769,18 @@ local function LayoutBuffIcons()
         if e.frame:IsShown() then table.insert(active, e) end
     end
 
+    -- Sort if requested
+    local sortMode = bw.SortMode or "normal"
+    if sortMode == "duration_asc" then
+        table.sort(active, function(a,b)
+            return (a.endTime or 0) < (b.endTime or 0)
+        end)
+    elseif sortMode == "duration_desc" then
+        table.sort(active, function(a,b)
+            return (a.endTime or 0) > (b.endTime or 0)
+        end)
+    end
+
     if #active == 0 then
         if _dragBox then _dragBox:SetShown(not bw.Locked); _dragBox:SetSize(iw, ih+lblH) end
         _buffWin:SetSize(iw, ih+lblH)
@@ -750,10 +789,14 @@ local function LayoutBuffIcons()
     if _dragBox then _dragBox:Hide() end
 
     -- Always re-apply saved anchor to keep window in correct position
-    local bwd = GetBuffWinDB()
+    local _bwraw = ConsumableTrackerDB and ConsumableTrackerDB.BuffWindow
     _buffWin:ClearAllPoints()
-    _buffWin:SetPoint(bwd.AnchorPoint or "TOP", ResolveFrame(bwd.AnchorToFrame),
-        bwd.AnchorToPoint or "TOP", bwd.X or 0, bwd.Y or -100)
+    _buffWin:SetPoint(
+        (_bwraw and _bwraw.AnchorPoint)   or "TOP",
+        ResolveFrame((_bwraw and _bwraw.AnchorToFrame) or "UIParent"),
+        (_bwraw and _bwraw.AnchorToPoint) or "TOP",
+        (_bwraw and _bwraw.X ~= nil) and _bwraw.X or 0,
+        (_bwraw and _bwraw.Y ~= nil) and _bwraw.Y or -100)
 
     -- First icon anchored to buff window
     local first = active[1]
@@ -795,7 +838,6 @@ local function BuildBuffWindow()
     f:SetClampedToScreen(true); f:SetMovable(true)
     f:EnableMouse(true)
 
-    -- Drag handle: whole frame is draggable when unlocked
     f:SetScript("OnMouseDown",function(self,b)
         if b=="LeftButton" and not GetBuffWinDB().Locked then self:StartMoving() end
     end)
@@ -810,7 +852,6 @@ local function BuildBuffWindow()
         end
     end)
 
-    -- Drag placeholder box (visible when unlocked + no active icons)
     local db = CreateFrame("Frame",nil,f,"BackdropTemplate")
     db:SetAllPoints(f)
     SetBD(db,0.10,0.10,0.18,0.70,0.35,0.35,0.70)
@@ -821,118 +862,211 @@ local function BuildBuffWindow()
     db:Hide()
     _dragBox = db
 
-    -- Apply position
+    -- Apply saved position — read directly from DB, never use defaults for position
+    -- so a saved anchor is never overwritten by GLOBAL_DEFAULTS values
     f:ClearAllPoints()
-    f:SetPoint(bw.AnchorPoint or "TOP", ResolveFrame(bw.AnchorToFrame),
-        bw.AnchorToPoint or "TOP", bw.X or 0, bw.Y or -100)
+    local _bwraw = ConsumableTrackerDB and ConsumableTrackerDB.BuffWindow
+    local _apt  = (_bwraw and _bwraw.AnchorPoint)   or "TOP"
+    local _atf  = (_bwraw and _bwraw.AnchorToFrame) or "UIParent"
+    local _atp  = (_bwraw and _bwraw.AnchorToPoint) or "TOP"
+    local _bwx  = (_bwraw and _bwraw.X ~= nil) and _bwraw.X or 0
+    local _bwy  = (_bwraw and _bwraw.Y ~= nil) and _bwraw.Y or -100
+    f:SetPoint(_apt, ResolveFrame(_atf), _atp, _bwx, _bwy)
 
     if not bw.Enabled then f:Hide() end
     _buffWin = f
 
-    -- Poll tracked item IDs every 0.1s and fire buff icon when cooldown starts
-    local _itemCDCache = {}  -- [itemId] = lastKnownStart
+    -- ── Persistent frame registry ────────────────────────────────────────────
+    -- Each unique key gets ONE frame created out of combat and reused forever.
+    -- Frames are never destroyed or returned to a pool, so combat never blocks us.
+    -- ─────────────────────────────────────────────────────────────────────────
+    local _persistFrames = {}  -- [key] = frame
+
+    local function MakeBuffFrame(key)
+        if _persistFrames[key] then return _persistFrames[key] end
+        local pf = CreateFrame("Frame",nil,_buffWin,"BackdropTemplate")
+        pf:SetFrameLevel(_buffWin:GetFrameLevel()+5)
+        SetBD(pf,0.06,0.06,0.08,0.0,0,0,0,0)
+        local ico = pf:CreateTexture(nil,"BACKGROUND")
+        ico:SetAllPoints(pf); ico:SetTexCoord(0.08,0.92,0.08,0.92); pf._ico=ico
+        local swipe = CreateFrame("Cooldown",nil,pf,"CooldownFrameTemplate")
+        swipe:SetAllPoints(pf); swipe:SetDrawEdge(false)
+        swipe:SetHideCountdownNumbers(true); swipe:Clear(); pf._swipe=swipe
+        local cdFrame = CreateFrame("Frame",nil,pf)
+        cdFrame:SetAllPoints(pf); cdFrame:SetFrameLevel(pf:GetFrameLevel()+20)
+        local cd = cdFrame:CreateFontString(nil,"OVERLAY")
+        cd:SetFont(STANDARD_TEXT_FONT,14,"OUTLINE"); cd:SetTextColor(1,1,1,1)
+        cd:SetPoint("CENTER",cdFrame,"CENTER",0,0); pf._cdFrame=cdFrame; pf._cd=cd
+        local lbl = pf:CreateFontString(nil,"OVERLAY")
+        lbl:SetFont(STANDARD_TEXT_FONT,7,"OUTLINE"); lbl:SetTextColor(0.75,0.75,0.75,1)
+        lbl:SetPoint("BOTTOM",pf,"TOP",0,2); lbl:SetJustifyH("CENTER"); pf._lbl=lbl
+        pf:EnableMouse(true)
+        pf:SetScript("OnMouseDown",function(_,b)
+            if b=="RightButton" then pf:Hide(); LayoutBuffIcons() end
+        end)
+        pf:Hide()
+        _persistFrames[key] = pf
+        return pf
+    end
+
+    -- Pre-create frames for all currently tracked/equipped items.
+    -- Extracted to a function so it can be re-called on world entry and gear changes.
+    local function PreCreateBuffFrames()
+        local bwd = GetBuffWinDB()
+        for _, entry in ipairs(bwd.TrackedItems or {}) do
+            if entry.itemId and entry.itemId > 0 then
+                MakeBuffFrame("tracked_"..entry.itemId)
+            end
+        end
+        local MID = CT.MIDNIGHT_S1_ONUSE
+        if MID then
+            for slot = 1, 17 do
+                local itemId = GetInventoryItemID("player", slot)
+                if itemId and itemId > 0 and MID[itemId] then
+                    MakeBuffFrame("midnight_"..itemId)
+                end
+            end
+        end
+    end
+    -- Run at build time (out of combat, safe to CreateFrame)
+    C_Timer.After(0.1, PreCreateBuffFrames)
+    -- Expose so PLAYER_ENTERING_WORLD and PLAYER_EQUIPMENT_CHANGED can re-run it
+    CT._PreCreateBuffFrames = PreCreateBuffFrames
+
+    -- Expose so ShowCustomBuffIcon can reach the frame registry
+    CT._GetOrMakeBuffFrame = function(key)
+        -- If frame already exists, return it (safe in combat)
+        if _persistFrames[key] then return _persistFrames[key] end
+        -- Frame doesn't exist yet — can only create out of combat
+        if InCombatLockdown() then return nil end
+        return MakeBuffFrame(key)
+    end
+
+    -- ── CD state tables ───────────────────────────────────────────────────────
+    local _buffItemCDActive  = {}  -- ["tracked_<id>"]   = bool
+    local _midnightCDActive  = {}  -- ["midnight_<id>"]  = bool
+
+    local function ItemCDActive(id, minCD)
+        local s,d,en = C_Item.GetItemCooldown(id)
+        s=s or 0; d=d or 0
+        local threshold = math.max(minCD or 1.5, 1.5)
+        return en~=0 and d>=threshold and s>0 and (s+d)>GetTime()
+    end
+
+    local function PrePopulateCDState()
+        local bwd2 = GetBuffWinDB()
+        local MID2 = CT.MIDNIGHT_S1_ONUSE
+        for _, entry in ipairs(bwd2.TrackedItems or {}) do
+            local id = entry.itemId
+            if id and id > 0 then
+                _buffItemCDActive["tracked_"..id] = ItemCDActive(id)
+            end
+        end
+        if MID2 then
+            for slot = 1, 17 do
+                local itemId = GetInventoryItemID("player", slot)
+                if itemId and itemId > 0 and MID2[itemId] then
+                    local info = MID2[itemId]
+                    local minCD = (info.cooldown or 0) * 0.5
+                    _midnightCDActive["midnight_"..itemId] = ItemCDActive(itemId, minCD)
+                end
+            end
+        end
+    end
+    PrePopulateCDState()
+    CT._PrePopulateCDState = PrePopulateCDState
+
+    -- TrackedItems ticker
     C_Timer.NewTicker(0.1, function()
         if not _buffWin then return end
         local bwd = GetBuffWinDB()
         if not bwd.Enabled then return end
-        local items = bwd.TrackedItems or {}
-        local now = GetTime()
-        for _, entry in ipairs(items) do
+        if UnitIsDeadOrGhost("player") then return end
+        for _, entry in ipairs(bwd.TrackedItems or {}) do
             local id = entry.itemId
             if id and id > 0 then
-                local start, dur, enable = C_Item.GetItemCooldown(id)
-                if enable ~= 0 and dur and dur > 1.5 and start and start > 0 then
-                    local last = _itemCDCache[id] or 0
-                    if math.abs(start - now) < 0.5 and start ~= last then
-                        _itemCDCache[id] = start
-                        -- Build a pseudo-slot for ShowCustomBuffIcon
-                        local pseudoSlot = {
-                            type             = "item",
-                            label            = entry.label or (GetItemInfo(id) or ("Item "..id)),
-                            customTimerText  = entry.label,
-                            customTimerDuration = entry.duration or dur,
-                        }
+                local key = "tracked_"..id
+                if entry.enabled == false then
+                    _buffItemCDActive[key] = false
+                else
+                    local cdActive = ItemCDActive(id)
+                    if cdActive and not _buffItemCDActive[key] then
+                        _buffItemCDActive[key] = true
                         if CT.ShowCustomBuffIcon then
-                            CT.ShowCustomBuffIcon(pseudoSlot, id, entry.duration or dur)
+                            CT.ShowCustomBuffIcon(key, id,
+                                entry.label or (GetItemInfo(id) or ("Item "..id)),
+                                entry.duration or 0)
                         end
+                    elseif not cdActive then
+                        _buffItemCDActive[key] = false
                     end
                 end
             end
         end
     end)
+
+    -- Midnight S1 auto-track ticker
+    C_Timer.NewTicker(0.1, function()
+        if not _buffWin then return end
+        local bwd = GetBuffWinDB()
+        if not bwd.Enabled or not bwd.MidnightAutoTrackEnabled then return end
+        if UnitIsDeadOrGhost("player") then return end
+        local trackEnabled = bwd.MidnightAutoTrack or {}
+        local MID = CT.MIDNIGHT_S1_ONUSE
+        if not MID then return end
+        for slot = 1, 17 do
+            local itemId = GetInventoryItemID("player", slot)
+            if itemId and itemId > 0 then
+                local info = MID[itemId]
+                if info and info.duration and info.duration > 0 and trackEnabled[itemId] ~= false then
+                    local key = "midnight_"..itemId
+                    local minCD = (info.cooldown or 0) * 0.5
+                    local cdActive = ItemCDActive(itemId, minCD)
+                    if cdActive and not _midnightCDActive[key] then
+                        _midnightCDActive[key] = true
+                        if CT.ShowCustomBuffIcon then
+                            CT.ShowCustomBuffIcon(key, itemId, info.label, info.duration)
+                        end
+                    elseif not cdActive then
+                        _midnightCDActive[key] = false
+                    end
+                end
+            end
+        end
+    end)
+
     LayoutBuffIcons()
 end
 
-local function GetOrCreateBuffEntry(slot)
-    local key = tostring(slot)
+local function GetOrCreateBuffEntry(key)
     for _,e in ipairs(_buffSlots) do if e.key==key then return e end end
-
-    local f = CreateFrame("Frame",nil,_buffWin,"BackdropTemplate")
-    f:SetFrameLevel(_buffWin:GetFrameLevel()+5)
-    SetBD(f,0.06,0.06,0.08,0.0,0,0,0,0)
-
-    local ico = f:CreateTexture(nil,"BACKGROUND")
-    ico:SetAllPoints(f); ico:SetTexCoord(0.08,0.92,0.08,0.92)
-    f._ico = ico
-
-    -- Cooldown swipe (sits above icon)
-    local swipe = CreateFrame("Cooldown",nil,f,"CooldownFrameTemplate")
-    swipe:SetAllPoints(f); swipe:SetDrawEdge(false)
-    swipe:SetHideCountdownNumbers(true); swipe:Clear()
-    f._swipe = swipe
-
-    -- CD text — on its own frame so it's always above the swipe
-    local cdFrame = CreateFrame("Frame",nil,f)
-    cdFrame:SetAllPoints(f)
-    cdFrame:SetFrameLevel(f:GetFrameLevel()+20)
-    local cd = cdFrame:CreateFontString(nil,"OVERLAY")
-    cd:SetFont(STANDARD_TEXT_FONT,14,"OUTLINE")
-    cd:SetTextColor(1,1,1,1); cd:SetPoint("CENTER",cdFrame,"CENTER",0,0)
-    f._cdFrame = cdFrame
-    f._cd = cd
-
-    -- Name label — outside icon frame, repositioned in ApplyBuffIconStyle
-    local lbl = f:CreateFontString(nil,"OVERLAY")
-    lbl:SetFont(STANDARD_TEXT_FONT,7,"OUTLINE")
-    lbl:SetTextColor(0.75,0.75,0.75,1)
-    lbl:SetPoint("BOTTOM",f,"TOP",0,2); lbl:SetJustifyH("CENTER")
-    f._lbl = lbl
-
-    f:EnableMouse(true)
-    f:SetScript("OnMouseDown",function(_,b) if b=="RightButton" then f:Hide(); LayoutBuffIcons() end end)
-    f:Hide()
-
-    local entry = {frame=f, key=key, slot=slot}
+    -- Get the persistent frame for this key
+    local getFrame = CT._GetOrMakeBuffFrame
+    local pf = getFrame and getFrame(key)
+    if not pf then return nil end  -- in combat and frame wasn't pre-created
+    local entry = {frame=pf, key=key}
     table.insert(_buffSlots, entry)
     return entry
 end
 
-local function ShowCustomBuffIcon(slot, itemId, duration)
+local function ShowCustomBuffIcon(key, itemId, label, duration)
     if not _buffWin then BuildBuffWindow() end
     local bw = GetBuffWinDB()
     if not bw.Enabled then return end
+    if not duration or duration <= 0 then return end
 
-    local entry = GetOrCreateBuffEntry(slot)
+    local entry = GetOrCreateBuffEntry(key)
+    if not entry then return end
     local f = entry.frame
 
-    -- Texture — try spell texture first, then item texture
-    local tex = nil
-    if itemId then
-        if slot.type=="spell" or slot.spellType then
-            tex = (C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(itemId))
-               or GetSpellTexture and GetSpellTexture(itemId)
-        end
-        if not tex then
-            tex = GetTex(itemId) or select(10,GetItemInfo(itemId))
-        end
-    end
+    local tex = GetTex(itemId) or select(10,GetItemInfo(itemId))
     if tex then f._ico:SetTexture(tex) else f._ico:SetColorTexture(0.3,0.3,0.3,1) end
-    f._lbl:SetText(slot.label or "")
+    f._lbl:SetText(label or "")
 
-    -- Apply current style settings
+    -- Re-wrap entry slot for ApplyBuffIconStyle compatibility
+    entry.slot = {type="item", label=label}
     ApplyBuffIconStyle(entry)
 
-    -- Swipe setup
     if bw.ShowSwipe ~= false then
         f._swipe:SetCooldown(GetTime(), duration)
     else
@@ -945,19 +1079,27 @@ local function ShowCustomBuffIcon(slot, itemId, duration)
     LayoutBuffIcons()
 
     if entry.ticker then entry.ticker:Cancel() end
+    local _lastReorder = 0
     entry.ticker = C_Timer.NewTicker(0.05, function()
         if not f:IsShown() then entry.ticker:Cancel(); return end
-        local remaining = entry.endTime - GetTime()
+        local now = GetTime()
+        local remaining = entry.endTime - now
         if remaining <= 0 then
-            f:Hide(); entry.ticker:Cancel(); LayoutBuffIcons(); return
+            f:Hide(); entry.ticker:Cancel()
+            -- Remove from active slots list but keep frame alive for next use
+            for i,e in ipairs(_buffSlots) do
+                if e==entry then table.remove(_buffSlots,i); break end
+            end
+            LayoutBuffIcons(); return
         end
-        -- CD text
         if bw.CDTextShow ~= false then
-            local ct = slot.customTimerText
-            if ct and ct ~= "" then f._cd:SetText(ct)
-            else f._cd:SetText(math.ceil(remaining).."s") end
+            f._cd:SetText(math.ceil(remaining).."s")
         else
             f._cd:SetText("")
+        end
+        local sm = GetBuffWinDB().SortMode or "normal"
+        if sm ~= "normal" and now - _lastReorder >= 1.0 then
+            _lastReorder = now; LayoutBuffIcons()
         end
     end)
 end
@@ -966,10 +1108,14 @@ function CT.RefreshBuffWindow()
     if not _buffWin then BuildBuffWindow(); return end
     local bw = GetBuffWinDB()
     _buffWin:SetShown(bw.Enabled ~= false)
+    local _bwraw = ConsumableTrackerDB and ConsumableTrackerDB.BuffWindow
     _buffWin:ClearAllPoints()
-    _buffWin:SetPoint(bw.AnchorPoint or "TOP", ResolveFrame(bw.AnchorToFrame),
-        bw.AnchorToPoint or "TOP", bw.X or 0, bw.Y or -100)
-    -- Reapply style to all existing entries
+    _buffWin:SetPoint(
+        (_bwraw and _bwraw.AnchorPoint)   or "TOP",
+        ResolveFrame((_bwraw and _bwraw.AnchorToFrame) or "UIParent"),
+        (_bwraw and _bwraw.AnchorToPoint) or "TOP",
+        (_bwraw and _bwraw.X ~= nil) and _bwraw.X or 0,
+        (_bwraw and _bwraw.Y ~= nil) and _bwraw.Y or -100)
     for _,e in ipairs(_buffSlots) do ApplyBuffIconStyle(e) end
     LayoutBuffIcons()
 end
@@ -1380,17 +1526,15 @@ local function BuildSlotStruct(slot, win, winIdx)
             cap.itemId=newId
             -- Detect item just used: cooldown start changed to ~now
             if newId then
-                local start,dur=GetCD(newId)
+                local _s,_d,_en=C_Item.GetItemCooldown(newId)
+                _s=_s or 0; _d=_d or 0
+                local _cdOn=_d>1.5 and _s>0 and (_s+_d)>GetTime() and _en~=0
                 local dur2=capSlot.customTimerDuration
-                if dur2 and dur2>0 and start and start>0 then
-                    local now=GetTime()
-                    if math.abs(start-now)<0.5 and (not cap._lastKnownCDStart or cap._lastKnownCDStart~=start) then
-                        cap._customTimerEnd = now + dur2
-                        -- Spawn floating buff icon
-                        ShowCustomBuffIcon(capSlot, newId, dur2)
-                    end
-                    cap._lastKnownCDStart=start
+                if dur2 and dur2>0 and _cdOn and not cap._cdWasActive then
+                    local _key="group_slot_"..tostring(capSlot)
+                    ShowCustomBuffIcon(_key, newId, capSlot.label or "", dur2)
                 end
+                cap._cdWasActive=_cdOn
             end
             UpdateStructCDText(cap)
             UpdateStruct(cap)
@@ -1474,12 +1618,14 @@ local function BuildSlotStruct(slot, win, winIdx)
         cap.ticker=C_Timer.NewTicker(0.1,function()
             local dur2=capSlot.customTimerDuration
             if dur2 and dur2>0 then
-                local start,_=GetCD(capId)
-                local now=GetTime()
-                if start and start>0 and math.abs(start-now)<0.5 and (not cap._lastKnownCDStart or cap._lastKnownCDStart~=start) then
-                    cap._customTimerEnd = now + dur2
+                local _s,_d,_en=C_Item.GetItemCooldown(capId)
+                _s=_s or 0; _d=_d or 0
+                local _cdOn=_d>1.5 and _s>0 and (_s+_d)>GetTime() and _en~=0
+                if _cdOn and not cap._cdWasActive then
+                    local _key="item_slot_"..tostring(capSlot)
+                    ShowCustomBuffIcon(_key, capId, capSlot.label or "", dur2)
                 end
-                cap._lastKnownCDStart=start
+                cap._cdWasActive=_cdOn
             end
             UpdateStructCDText(cap); UpdateStruct(cap)
         end)
@@ -1491,18 +1637,17 @@ local function BuildSlotStruct(slot, win, winIdx)
         local capSlotNum=slot.slot
         s.frame:SetScript("OnEnter",function() ShowTip(s.frame,function() GameTooltip:SetInventoryItem("player",capSlotNum) end) end)
         cap.ticker=C_Timer.NewTicker(0.1,function()
-            -- Detect item just used for custom timer
             cap.itemId=GetInventoryItemID("player",capSlotNum)
             if cap.itemId then
-                local start,dur=GetItemCooldown(cap.itemId)
+                local _s,_d,_en=C_Item.GetItemCooldown(cap.itemId)
+                _s=_s or 0; _d=_d or 0
+                local _cdOn=_d>1.5 and _s>0 and (_s+_d)>GetTime() and _en~=0
                 local dur2=capSlot.customTimerDuration
-                if dur2 and dur2>0 and start and start>0 then
-                    local now=GetTime()
-                    if math.abs(start-now)<0.5 and (not cap._lastKnownCDStart or cap._lastKnownCDStart~=start) then
-                        ShowCustomBuffIcon(capSlot, cap.itemId, dur2)
-                    end
-                    cap._lastKnownCDStart=start
+                if dur2 and dur2>0 and _cdOn and not cap._cdWasActive then
+                    local _key="equip_slot_"..tostring(capSlot)
+                    ShowCustomBuffIcon(_key, cap.itemId, capSlot.label or "", dur2)
                 end
+                cap._cdWasActive=_cdOn
             end
             UpdateEquipStruct(cap)
             UpdateEquipStructCDText(cap)
@@ -1511,6 +1656,22 @@ local function BuildSlotStruct(slot, win, winIdx)
 
     ApplyAllToStruct(s)
     RegisterWithMasque(s)
+
+    -- Pre-populate _cdWasActive so items already on CD at login/reload
+    -- don't fire a false buff icon on the first ticker tick.
+    do
+        local _now = GetTime()
+        local _checkId
+        if slot.type=="group" then _checkId=ResolveGroup(slot)
+        elseif slot.type=="item" then _checkId=slot.itemId
+        elseif slot.type=="equip" then _checkId=slot.slot and GetInventoryItemID("player",slot.slot) end
+        if _checkId then
+            local _sv,_dv,_env=C_Item.GetItemCooldown(_checkId)
+            _sv=_sv or 0; _dv=_dv or 0
+            s._cdWasActive=(_env~=0 and _dv>1.5 and _sv>0 and (_sv+_dv)>_now)
+        end
+    end
+
     s.frame:Show()
     return s
 end
@@ -1661,9 +1822,37 @@ local function OnEvent(_,event,...)
         else
             C_Timer.After(0.1,UpdateAllIcons)
         end
+        -- Re-create frames for any newly equipped Midnight items and re-sync CD state.
+        -- Use 0.5s delay to let gear/item data fully load after the loading screen.
+        C_Timer.After(0.5, function()
+            if CT._PreCreateBuffFrames then CT._PreCreateBuffFrames() end
+            if CT._PrePopulateCDState then CT._PrePopulateCDState() end
+            local _now2 = GetTime()
+            for _,s in ipairs(iconStructs or {}) do
+                local slot = s.slotRef
+                if slot then
+                    local _id
+                    if slot.type=="group" then _id=ResolveGroup(slot)
+                    elseif slot.type=="item" then _id=slot.itemId
+                    elseif slot.type=="equip" then _id=s.itemId end
+                    if _id then
+                        local _sv,_dv,_env=C_Item.GetItemCooldown(_id)
+                        _sv=_sv or 0; _dv=_dv or 0
+                        s._cdWasActive=(_env~=0 and _dv>1.5 and _sv>0 and (_sv+_dv)>_now2)
+                    else
+                        s._cdWasActive=nil
+                    end
+                end
+            end
+        end)
 
     elseif event=="PLAYER_EQUIPMENT_CHANGED" then
         local changedSlot = ...
+        -- Pre-create buff frame for any newly equipped Midnight S1 item
+        -- Use a short delay so item data is loaded before we call GetInventoryItemID
+        C_Timer.After(0.3, function()
+            if CT._PreCreateBuffFrames then CT._PreCreateBuffFrames() end
+        end)
         if changedSlot then
             local relevant=false
             for _,win in ipairs(DB().Windows or {}) do
@@ -1682,7 +1871,7 @@ local function OnEvent(_,event,...)
     elseif event=="PLAYER_SPECIALIZATION_CHANGED" then
         if ...=="player" and not InCombatLockdown() then
             C_Timer.After(0.2, function() CT:RefreshLayout() end)
-            C_Timer.After(0.3, UpdateMinimapIcon)
+            C_Timer.After(0.3, function() if CT._UpdateMinimapIcon then CT._UpdateMinimapIcon() end end)
         end
     elseif event=="UNIT_SPELLCAST_SUCCEEDED" then
         local unit, _, spellId = ...
@@ -1698,10 +1887,10 @@ local function OnEvent(_,event,...)
                             local origId = s.slotRef and s.slotRef.spellId
                             if s.spellId==spellId or origId==spellId then
                                 spellCDCache[s.spellId] = {start=st, dur=du}
-                                -- Fire custom buff icon if slot has a custom timer
                                 local slot = s.slotRef
                                 if slot and slot.customTimerDuration and slot.customTimerDuration > 0 then
-                                    ShowCustomBuffIcon(slot, s.spellId, slot.customTimerDuration)
+                                    local _key="spell_slot_"..tostring(slot)
+                                    ShowCustomBuffIcon(_key, s.spellId, slot.label or "", slot.customTimerDuration)
                                 end
                             end
                         end
@@ -1714,7 +1903,8 @@ local function OnEvent(_,event,...)
                             if s.spellId==spellId or origId==spellId then
                                 local slot = s.slotRef
                                 if slot and slot.customTimerDuration and slot.customTimerDuration > 0 then
-                                    ShowCustomBuffIcon(slot, s.spellId, slot.customTimerDuration)
+                                    local _key="spell_slot_"..tostring(slot)
+                                    ShowCustomBuffIcon(_key, s.spellId, slot.label or "", slot.customTimerDuration)
                                 end
                             end
                         end
@@ -1989,6 +2179,7 @@ end
 
 -- Exposed so PLAYER_LOGIN handler can call after these locals are defined
 CT._CreateMinimapButton = function() CreateMinimapButton(); UpdateMinimapIcon() end
+CT._UpdateMinimapIcon   = function() UpdateMinimapIcon() end
 
 function CT:ToggleMinimapButton()
     local db=ConsumableTrackerDB

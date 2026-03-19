@@ -2438,6 +2438,13 @@ local function BuildPageBuffWindow(page)
         ML,y,180,
         function() return BWD().IconStrata or "HIGH" end,
         function(v) BWD().IconStrata=v; Refresh() end)
+    y=WDropdown(page,"Icon order:",
+        {{label="Normal  (order they appeared)",    value="normal"},
+         {label="Shortest duration first",           value="duration_asc"},
+         {label="Longest duration first",            value="duration_desc"}},
+        ML,y,280,
+        function() return BWD().SortMode or "normal" end,
+        function(v) BWD().SortMode=v; Refresh() end)
 
     y=WHeader(page,"Name Label",y)
     y=WCheck(page,"Show potion name near icon",ML,y,
@@ -2571,6 +2578,7 @@ local function BuildPageBuffWindow(page)
     CT._rebuildBuffPageList = function()
         RebuildTrackedList()
         if RebuildItemList then RebuildItemList() end
+        if CT._rebuildMidnightList then CT._rebuildMidnightList() end
     end
     RebuildTrackedList()
     y=y+listHolder:GetHeight()+8
@@ -2702,7 +2710,26 @@ local function BuildPageBuffWindow(page)
             -- Duration
             local durLbl=row:CreateFontString(nil,"OVERLAY"); durLbl:SetFont("Fonts\\ARIALN.TTF",9,"")
             durLbl:SetTextColor(0.5,0.8,0.5,1); durLbl:SetText((entry.duration or "auto").."s")
-            durLbl:SetPoint("RIGHT",row,"RIGHT",-34,0)
+            durLbl:SetPoint("RIGHT",row,"RIGHT",-70,0)
+
+            -- Enable/disable toggle
+            local togBtn=CreateFrame("Button",nil,row,"BackdropTemplate"); togBtn:SetSize(32,18); togBtn:SetPoint("RIGHT",row,"RIGHT",-34,0)
+            local isOn=entry.enabled~=false
+            BD(togBtn,isOn and 0.07 or 0.09,isOn and 0.14 or 0.09,isOn and 0.22 or 0.09,1,
+                       isOn and 0.24 or 0.22,isOn and 0.49 or 0.22,isOn and 0.73 or 0.22,1)
+            local togL=togBtn:CreateFontString(nil,"OVERLAY"); togL:SetFont("Fonts\\ARIALN.TTF",9,"")
+            togL:SetText(isOn and "ON" or "OFF"); togL:SetAllPoints(); togL:SetJustifyH("CENTER")
+            togL:SetTextColor(isOn and 0.5 or 0.5,isOn and 1.0 or 0.5,isOn and 1.0 or 0.5,1)
+            local capCI2=ci
+            togBtn:SetScript("OnClick",function()
+                local bwd=BWD2(); if not bwd.TrackedItems then return end
+                local e=bwd.TrackedItems[capCI2]; if not e then return end
+                e.enabled=not(e.enabled~=false); local now2=e.enabled~=false
+                BD(togBtn,now2 and 0.07 or 0.09,now2 and 0.14 or 0.09,now2 and 0.22 or 0.09,1,
+                           now2 and 0.24 or 0.22,now2 and 0.49 or 0.22,now2 and 0.73 or 0.22,1)
+                togL:SetText(now2 and "ON" or "OFF")
+                togL:SetTextColor(now2 and 0.5 or 0.5,now2 and 1.0 or 0.5,now2 and 1.0 or 0.5,1)
+            end)
 
             -- Remove button
             local remBtn=CreateFrame("Button",nil,row,"BackdropTemplate"); remBtn:SetSize(28,18); remBtn:SetPoint("RIGHT",row,"RIGHT",-3,0)
@@ -2732,6 +2759,89 @@ local function BuildPageBuffWindow(page)
     y=y+itemListHolder:GetHeight()+8
 
     y=WTip(page,"Tip: /ct buffwin to reset position if off-screen.",ML,y)
+
+    -- ============================================================
+    -- Midnight Season 1 Auto-Track
+    -- ============================================================
+    y=WHeader(page,"Midnight S1 Auto-Track",y)
+    y=WTip(page,"Auto-shows a buff icon when you use an equipped Midnight S1 on-use item. Only items with a buff duration fire an icon.",ML,y)
+    y=WCheck(page,"Enable Midnight S1 auto-tracking",ML,y,
+        function() return BWD().MidnightAutoTrackEnabled or false end,
+        function(v) BWD().MidnightAutoTrackEnabled=v; Refresh() end)
+
+    local midHolder=CreateFrame("Frame",nil,page)
+    midHolder:SetPoint("TOPLEFT",page,"TOPLEFT",ML,-y); midHolder:SetWidth(EW)
+
+    local function RebuildMidnightList()
+        for _,c in ipairs({midHolder:GetChildren()}) do c:Hide(); c:SetParent(nil) end
+        for _,r in ipairs({midHolder:GetRegions()}) do r:Hide() end
+        local MID=CT.MIDNIGHT_S1_ONUSE
+        if not MID then midHolder:SetHeight(22); return end
+        local bwd=BWD()
+        if not bwd.MidnightAutoTrack then bwd.MidnightAutoTrack={} end
+        local trackEnabled=bwd.MidnightAutoTrack
+        local ry=0; local MRH=28; local found=false
+        for slot=1,17 do
+            local itemId=GetInventoryItemID("player",slot)
+            if itemId and itemId>0 then
+                local info=MID[itemId]
+                if info then
+                    found=true
+                    local capId=itemId
+                    local isEnabled=trackEnabled[itemId]~=false
+                    local row=CreateFrame("Frame",nil,midHolder,"BackdropTemplate")
+                    row:SetSize(EW,MRH-2); row:SetPoint("TOPLEFT",midHolder,"TOPLEFT",0,-ry)
+                    BD(row,0.08,0.08,0.12,1,0.20,0.20,0.35)
+
+                    local icoF=CreateFrame("Frame",nil,row); icoF:SetSize(MRH-4,MRH-4); icoF:SetPoint("LEFT",row,"LEFT",3,0)
+                    local icoTex=icoF:CreateTexture(nil,"ARTWORK"); icoTex:SetAllPoints(icoF); icoTex:SetTexCoord(0.08,0.92,0.08,0.92)
+                    C_Item.RequestLoadItemDataByID(itemId)
+                    local itex=C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemId)
+                    if itex then icoTex:SetTexture(itex) else icoTex:SetColorTexture(0.3,0.3,0.3,1) end
+                    icoF:EnableMouse(true)
+                    icoF:SetScript("OnEnter",function(self) GameTooltip:SetOwner(self,"ANCHOR_RIGHT"); GameTooltip:SetItemByID(capId); GameTooltip:Show() end)
+                    icoF:SetScript("OnLeave",function() GameTooltip:Hide() end)
+
+                    local slotTag=(slot==13 and " |cFF888888[Trinket 1]|r" or slot==14 and " |cFF888888[Trinket 2]|r" or "")
+                    local durStr=info.duration>0 and ("  |cFF558855"..info.duration.."s buff|r") or "  |cFF555555instant|r"
+                    local lbl=row:CreateFontString(nil,"OVERLAY"); lbl:SetFont("Fonts\\ARIALN.TTF",GFS(),"")
+                    lbl:SetTextColor(isEnabled and 0.9 or 0.4,isEnabled and 0.9 or 0.4,isEnabled and 0.9 or 0.4,1)
+                    lbl:SetText(info.label..slotTag..durStr)
+                    lbl:SetPoint("LEFT",icoF,"RIGHT",5,0); lbl:SetPoint("RIGHT",row,"RIGHT",-68,0); lbl:SetJustifyH("LEFT")
+
+                    local togBtn=CreateFrame("Button",nil,row,"BackdropTemplate"); togBtn:SetSize(58,20); togBtn:SetPoint("RIGHT",row,"RIGHT",-4,0)
+                    BD(togBtn,isEnabled and 0.07 or 0.09,isEnabled and 0.14 or 0.09,isEnabled and 0.22 or 0.09,1,
+                               isEnabled and 0.24 or 0.22,isEnabled and 0.49 or 0.22,isEnabled and 0.73 or 0.22,1)
+                    local togL=togBtn:CreateFontString(nil,"OVERLAY"); togL:SetFont("Fonts\\ARIALN.TTF",9,"")
+                    togL:SetText(isEnabled and "Tracking" or "Disabled"); togL:SetAllPoints(); togL:SetJustifyH("CENTER")
+                    togL:SetTextColor(isEnabled and 0.5 or 0.5,isEnabled and 1.0 or 0.5,isEnabled and 1.0 or 0.5,1)
+                    local capIdT=itemId
+                    togBtn:SetScript("OnClick",function()
+                        local bwd2=BWD(); if not bwd2.MidnightAutoTrack then bwd2.MidnightAutoTrack={} end
+                        local cur=bwd2.MidnightAutoTrack[capIdT]~=false
+                        bwd2.MidnightAutoTrack[capIdT]=not cur
+                        local now2=bwd2.MidnightAutoTrack[capIdT]
+                        BD(togBtn,now2 and 0.07 or 0.09,now2 and 0.14 or 0.09,now2 and 0.22 or 0.09,1,
+                                   now2 and 0.24 or 0.22,now2 and 0.49 or 0.22,now2 and 0.73 or 0.22,1)
+                        togL:SetText(now2 and "Tracking" or "Disabled")
+                        togL:SetTextColor(now2 and 0.5 or 0.5,now2 and 1.0 or 0.5,now2 and 1.0 or 0.5,1)
+                        lbl:SetTextColor(now2 and 0.9 or 0.4,now2 and 0.9 or 0.4,now2 and 0.9 or 0.4,1)
+                    end)
+                    ry=ry+MRH
+                end
+            end
+        end
+        if not found then
+            local hint=midHolder:CreateFontString(nil,"OVERLAY"); hint:SetFont("Fonts\\ARIALN.TTF",10,""); hint:SetTextColor(0.4,0.4,0.4,1)
+            hint:SetText("No Midnight S1 on-use items currently equipped."); hint:SetPoint("TOPLEFT",midHolder,"TOPLEFT",0,0); hint:SetWidth(EW); hint:SetJustifyH("CENTER")
+            midHolder:SetHeight(22)
+        else
+            midHolder:SetHeight(ry)
+        end
+    end
+    CT._rebuildMidnightList=RebuildMidnightList
+    RebuildMidnightList()
+    y=y+midHolder:GetHeight()+8
 end
 
 -- ============================================================
@@ -3092,15 +3202,11 @@ local function BuildGUI()
     _guiBuilding = true
     local frame=CreateFrame("Frame","CTSettingsFrame",UIParent,"BackdropTemplate")
     frame:SetSize(W,H); frame:SetPoint("CENTER"); frame:SetFrameStrata("DIALOG"); frame:SetFrameLevel(100)
-    frame:SetMovable(true); frame:EnableMouse(true); frame:EnableKeyboard(true)
-    frame:SetPropagateKeyboardInput(true)  -- don't swallow keyboard; let game still move
+    frame:SetMovable(true); frame:EnableMouse(true)
     frame:SetClampedToScreen(true)
     frame:SetScript("OnHide", function()
         if _openDrop then _openDrop:Hide(); _openDrop=nil end
         if _openDropMenu then _openDropMenu:Hide(); _openDropMenu=nil end
-    end)
-    frame:SetScript("OnKeyDown",function(self,key)
-        if key=="ESCAPE" then frame:Hide() end
     end)
     BD(frame,0.05,0.05,0.05,0.94,0,0,0)
     local tb=CreateFrame("Frame",nil,frame,"BackdropTemplate")
