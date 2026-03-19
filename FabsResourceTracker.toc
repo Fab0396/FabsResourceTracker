@@ -3,10 +3,11 @@
 ## Title: Fabs Resource Tracker
 ## Notes: Track consumables, potions, flasks, phials, defensives, racials and gear on-use cooldowns across multiple windows.
 ## Author: Fab
-## Version: 3.2.0
-## IconTexture: Interface\AddOns\FabsResourceTracker\icon
+## Version: 3.3.0
+## IconTexture: Interface\\AddOns\\FabsResourceTracker\\icon
 ## SavedVariables: ConsumableTrackerDB
 ## OptionalDeps: Masque, LibStub, LibDataBroker-1.1, LibDBIcon-1.0
 
 Main.lua
+Profiles.lua
 GUI.lua
