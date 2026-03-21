@@ -2591,6 +2591,9 @@ local function BuildPageBuffWindow(page)
         function() return BWD().AnchorToFrame or "UIParent" end,
         function(v)
             BWD().AnchorToFrame = v
+            -- When switching to a frame anchor, reset X/Y to 0 so the
+            -- buff window sits right at the anchor point with no stale offset.
+            if v ~= "UIParent" then BWD().X = 0; BWD().Y = 0 end
             if UpdatePointDropVisibility then UpdatePointDropVisibility() end; Refresh()
         end)
     -- SAP label + bar inline on same rows as "Anchor to:" label/bar

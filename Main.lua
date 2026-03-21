@@ -854,16 +854,15 @@ local function BuildBuffWindow()
     end)
     f:SetScript("OnMouseUp",function(self)
         self:StopMovingOrSizing()
-        local _,_,_,x,y = self:GetPoint(1)
-        if x then
-            local bwd = GetBuffWinDB()
-            -- Dragging always produces UIParent-relative coords.
-            -- Always store CENTER/CENTER so it never drifts to TOPRIGHT.
-            bwd.AnchorPoint   = "CENTER"
-            bwd.AnchorToPoint = "CENTER"
-            bwd.AnchorToFrame = "UIParent"
-            bwd.X=math.floor((x or 0)+0.5); bwd.Y=math.floor((y or 0)+0.5)
-        end
+        local bwd = GetBuffWinDB()
+        -- Dragging always detaches from any frame anchor and switches to UIParent.
+        -- Use GetCenter()+ScreenAnchorOffset for a correct position regardless
+        -- of which internal anchor WoW chose after StopMovingOrSizing.
+        local sap = bwd.ScreenAnchorPoint or "CENTER"
+        bwd.AnchorPoint   = sap
+        bwd.AnchorToPoint = sap
+        bwd.AnchorToFrame = "UIParent"
+        bwd.X, bwd.Y = ScreenAnchorOffset(self, sap)
     end)
 
     local db = CreateFrame("Frame",nil,f,"BackdropTemplate")
