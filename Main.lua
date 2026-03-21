@@ -246,6 +246,9 @@ CT.MIDNIGHT_S1_ONUSE = {
     [249806] = {label="Radiant Plume",                cooldown=300, duration=60},
     [260235] = {label="Umbral Plume",                 cooldown=300, duration=60},
     [251786] = {label="Ever-Collapsing Void Fissure", cooldown=120, duration=10},
+    [251787] = {label="Sealed Chaos Urn",             cooldown=120, duration=20},
+    [255326] = {label="Aspirant's Badge of Ferocity", cooldown=60,  duration=15},
+    [255613] = {label="Gladiator's Badge of Ferocity",cooldown=60,  duration=15},
 }
 
 local WIN_DEFAULTS = {
@@ -407,13 +410,17 @@ local function ApplySkinToStruct(s)
     s.qSkinTex:Show()
 end
 
+local _STRATA_UP = {
+    BACKGROUND="LOW", LOW="MEDIUM", MEDIUM="HIGH",
+    HIGH="DIALOG", DIALOG="FULLSCREEN", FULLSCREEN="TOOLTIP",
+    FULLSCREEN_DIALOG="TOOLTIP", TOOLTIP="TOOLTIP",
+}
 local function ApplyStrataToStruct(s)
     local db=s.winDef or DB().Windows and DB().Windows[1] or DB()
     local strata=db.IconStrata or "MEDIUM"
     s.frame:SetFrameStrata(strata)
-    -- textFrame stays on same strata as icon, just a higher level within it
-    s.textFrame:SetFrameStrata(strata)
-    s.textFrame:SetFrameLevel(s.frame:GetFrameLevel() + 15)
+    s.textFrame:SetFrameStrata(_STRATA_UP[strata] or strata)
+    s.textFrame:SetFrameLevel(s.frame:GetFrameLevel() + 1)
 end
 
 local BORDER_STYLES = {
@@ -791,12 +798,16 @@ local function LayoutBuffIcons()
     -- Always re-apply saved anchor to keep window in correct position
     local _bwraw = ConsumableTrackerDB and ConsumableTrackerDB.BuffWindow
     _buffWin:ClearAllPoints()
-    _buffWin:SetPoint(
-        (_bwraw and _bwraw.AnchorPoint)   or "TOP",
-        ResolveFrame((_bwraw and _bwraw.AnchorToFrame) or "UIParent"),
-        (_bwraw and _bwraw.AnchorToPoint) or "TOP",
-        (_bwraw and _bwraw.X ~= nil) and _bwraw.X or 0,
-        (_bwraw and _bwraw.Y ~= nil) and _bwraw.Y or -100)
+    do
+        local _li_atf = (_bwraw and _bwraw.AnchorToFrame) or "UIParent"
+        local _li_scr = _li_atf == "UIParent"
+        local _li_sap = (_bwraw and _bwraw.ScreenAnchorPoint) or "CENTER"
+        local _li_ap  = _li_scr and _li_sap or ((_bwraw and _bwraw.AnchorPoint) or "CENTER")
+        local _li_atp = _li_scr and _li_sap or ((_bwraw and _bwraw.AnchorToPoint) or "CENTER")
+        _buffWin:SetPoint(_li_ap, ResolveFrame(_li_atf), _li_atp,
+            (_bwraw and _bwraw.X ~= nil) and _bwraw.X or 0,
+            (_bwraw and _bwraw.Y ~= nil) and _bwraw.Y or -100)
+    end
 
     -- First icon anchored to buff window
     local first = active[1]
@@ -843,12 +854,15 @@ local function BuildBuffWindow()
     end)
     f:SetScript("OnMouseUp",function(self)
         self:StopMovingOrSizing()
-        local pt,_,rpt,x,y = self:GetPoint(1)
-        if pt then
+        local _,_,_,x,y = self:GetPoint(1)
+        if x then
             local bwd = GetBuffWinDB()
-            bwd.AnchorPoint=pt; bwd.AnchorToPoint=rpt
+            -- Dragging always produces UIParent-relative coords.
+            -- Always store CENTER/CENTER so it never drifts to TOPRIGHT.
+            bwd.AnchorPoint   = "CENTER"
+            bwd.AnchorToPoint = "CENTER"
+            bwd.AnchorToFrame = "UIParent"
             bwd.X=math.floor((x or 0)+0.5); bwd.Y=math.floor((y or 0)+0.5)
-            bwd.AnchorToFrame="UIParent"
         end
     end)
 
@@ -866,9 +880,11 @@ local function BuildBuffWindow()
     -- so a saved anchor is never overwritten by GLOBAL_DEFAULTS values
     f:ClearAllPoints()
     local _bwraw = ConsumableTrackerDB and ConsumableTrackerDB.BuffWindow
-    local _apt  = (_bwraw and _bwraw.AnchorPoint)   or "TOP"
     local _atf  = (_bwraw and _bwraw.AnchorToFrame) or "UIParent"
-    local _atp  = (_bwraw and _bwraw.AnchorToPoint) or "TOP"
+    local _isScr = _atf == "UIParent"
+    local _sap  = (_bwraw and _bwraw.ScreenAnchorPoint) or "CENTER"
+    local _apt  = _isScr and _sap or ((_bwraw and _bwraw.AnchorPoint) or "CENTER")
+    local _atp  = _isScr and _sap or ((_bwraw and _bwraw.AnchorToPoint) or "CENTER")
     local _bwx  = (_bwraw and _bwraw.X ~= nil) and _bwraw.X or 0
     local _bwy  = (_bwraw and _bwraw.Y ~= nil) and _bwraw.Y or -100
     f:SetPoint(_apt, ResolveFrame(_atf), _atp, _bwx, _bwy)
@@ -894,6 +910,8 @@ local function BuildBuffWindow()
         swipe:SetHideCountdownNumbers(true); swipe:Clear(); pf._swipe=swipe
         local cdFrame = CreateFrame("Frame",nil,pf)
         cdFrame:SetAllPoints(pf); cdFrame:SetFrameLevel(pf:GetFrameLevel()+20)
+        local _bwSt = GetBuffWinDB().IconStrata or "HIGH"
+        cdFrame:SetFrameStrata(_STRATA_UP[_bwSt] or _bwSt)
         local cd = cdFrame:CreateFontString(nil,"OVERLAY")
         cd:SetFont(STANDARD_TEXT_FONT,14,"OUTLINE"); cd:SetTextColor(1,1,1,1)
         cd:SetPoint("CENTER",cdFrame,"CENTER",0,0); pf._cdFrame=cdFrame; pf._cd=cd
@@ -942,24 +960,26 @@ local function BuildBuffWindow()
         return MakeBuffFrame(key)
     end
 
-    -- ── CD state tables ───────────────────────────────────────────────────────
-    local _buffItemCDActive  = {}  -- ["tracked_<id>"]   = bool
-    local _midnightCDActive  = {}  -- ["midnight_<id>"]  = bool
+    -- ── CD start-time tracking (replaces bool-gate) ───────────────────────────
+    -- Stores the startTime of the most recently seen CD for each item.
+    -- Icon fires ONLY when startTime changes — immune to zone transitions,
+    -- resurrections, and re-logins. No PrePopulate needed on zone entry.
+    local _buffItemLastStart  = {}  -- ["tracked_<id>"]  = lastStartTime
+    local _midnightLastStart  = {}  -- ["midnight_<id>"] = lastStartTime
 
-    local function ItemCDActive(id, minCD)
-        local s,d,en = C_Item.GetItemCooldown(id)
-        s=s or 0; d=d or 0
-        local threshold = math.max(minCD or 1.5, 1.5)
-        return en~=0 and d>=threshold and s>0 and (s+d)>GetTime()
-    end
-
+    -- Seed start times on first load so we never fire for a CD that was
+    -- already running before the addon loaded.
     local function PrePopulateCDState()
         local bwd2 = GetBuffWinDB()
         local MID2 = CT.MIDNIGHT_S1_ONUSE
         for _, entry in ipairs(bwd2.TrackedItems or {}) do
             local id = entry.itemId
             if id and id > 0 then
-                _buffItemCDActive["tracked_"..id] = ItemCDActive(id)
+                local s,d,en = C_Item.GetItemCooldown(id)
+                s=s or 0; d=d or 0
+                if en~=0 and d>=1.5 and s>0 and (s+d)>GetTime() then
+                    _buffItemLastStart["tracked_"..id] = s
+                end
             end
         end
         if MID2 then
@@ -967,16 +987,21 @@ local function BuildBuffWindow()
                 local itemId = GetInventoryItemID("player", slot)
                 if itemId and itemId > 0 and MID2[itemId] then
                     local info = MID2[itemId]
-                    local minCD = (info.cooldown or 0) * 0.5
-                    _midnightCDActive["midnight_"..itemId] = ItemCDActive(itemId, minCD)
+                    local minCD = math.max((info.cooldown or 0)*0.5, 1.5)
+                    local s,d,en = C_Item.GetItemCooldown(itemId)
+                    s=s or 0; d=d or 0
+                    if en~=0 and d>=minCD and s>0 and (s+d)>GetTime() then
+                        _midnightLastStart["midnight_"..itemId] = s
+                    end
                 end
             end
         end
     end
     PrePopulateCDState()
+    -- Only expose for login/reload — NOT called on zone entry
     CT._PrePopulateCDState = PrePopulateCDState
 
-    -- TrackedItems ticker
+    -- TrackedItems ticker — start-time based
     C_Timer.NewTicker(0.1, function()
         if not _buffWin then return end
         local bwd = GetBuffWinDB()
@@ -987,25 +1012,31 @@ local function BuildBuffWindow()
             if id and id > 0 then
                 local key = "tracked_"..id
                 if entry.enabled == false then
-                    _buffItemCDActive[key] = false
+                    _buffItemLastStart[key] = nil
                 else
-                    local cdActive = ItemCDActive(id)
-                    if cdActive and not _buffItemCDActive[key] then
-                        _buffItemCDActive[key] = true
-                        if CT.ShowCustomBuffIcon then
-                            CT.ShowCustomBuffIcon(key, id,
-                                entry.label or (GetItemInfo(id) or ("Item "..id)),
-                                entry.duration or 0)
+                    local s,d,en = C_Item.GetItemCooldown(id)
+                    s=s or 0; d=d or 0
+                    local cdActive = en~=0 and d>=1.5 and s>0 and (s+d)>GetTime()
+                    if cdActive then
+                        if s ~= (_buffItemLastStart[key] or 0) then
+                            -- New CD start time — trinket was just used
+                            _buffItemLastStart[key] = s
+                            if CT.ShowCustomBuffIcon then
+                                CT.ShowCustomBuffIcon(key, id,
+                                    entry.label or (GetItemInfo(id) or ("Item "..id)),
+                                    entry.duration or 0)
+                            end
                         end
-                    elseif not cdActive then
-                        _buffItemCDActive[key] = false
+                    else
+                        -- CD expired — clear so next use is detected
+                        _buffItemLastStart[key] = nil
                     end
                 end
             end
         end
     end)
 
-    -- Midnight S1 auto-track ticker
+    -- Midnight S1 auto-track ticker — start-time based
     C_Timer.NewTicker(0.1, function()
         if not _buffWin then return end
         local bwd = GetBuffWinDB()
@@ -1020,15 +1051,19 @@ local function BuildBuffWindow()
                 local info = MID[itemId]
                 if info and info.duration and info.duration > 0 and trackEnabled[itemId] ~= false then
                     local key = "midnight_"..itemId
-                    local minCD = (info.cooldown or 0) * 0.5
-                    local cdActive = ItemCDActive(itemId, minCD)
-                    if cdActive and not _midnightCDActive[key] then
-                        _midnightCDActive[key] = true
-                        if CT.ShowCustomBuffIcon then
-                            CT.ShowCustomBuffIcon(key, itemId, info.label, info.duration)
+                    local minCD = math.max((info.cooldown or 0)*0.5, 1.5)
+                    local s,d,en = C_Item.GetItemCooldown(itemId)
+                    s=s or 0; d=d or 0
+                    local cdActive = en~=0 and d>=minCD and s>0 and (s+d)>GetTime()
+                    if cdActive then
+                        if s ~= (_midnightLastStart[key] or 0) then
+                            _midnightLastStart[key] = s
+                            if CT.ShowCustomBuffIcon then
+                                CT.ShowCustomBuffIcon(key, itemId, info.label, info.duration)
+                            end
                         end
-                    elseif not cdActive then
-                        _midnightCDActive[key] = false
+                    else
+                        _midnightLastStart[key] = nil
                     end
                 end
             end
@@ -1049,7 +1084,7 @@ local function GetOrCreateBuffEntry(key)
     return entry
 end
 
-local function ShowCustomBuffIcon(key, itemId, label, duration)
+local function ShowCustomBuffIcon(key, itemId, label, duration, preFetchedTex)
     if not _buffWin then BuildBuffWindow() end
     local bw = GetBuffWinDB()
     if not bw.Enabled then return end
@@ -1059,7 +1094,7 @@ local function ShowCustomBuffIcon(key, itemId, label, duration)
     if not entry then return end
     local f = entry.frame
 
-    local tex = GetTex(itemId) or select(10,GetItemInfo(itemId))
+    local tex = preFetchedTex or GetTex(itemId) or select(10,GetItemInfo(itemId))
     if tex then f._ico:SetTexture(tex) else f._ico:SetColorTexture(0.3,0.3,0.3,1) end
     f._lbl:SetText(label or "")
 
@@ -1110,12 +1145,16 @@ function CT.RefreshBuffWindow()
     _buffWin:SetShown(bw.Enabled ~= false)
     local _bwraw = ConsumableTrackerDB and ConsumableTrackerDB.BuffWindow
     _buffWin:ClearAllPoints()
-    _buffWin:SetPoint(
-        (_bwraw and _bwraw.AnchorPoint)   or "TOP",
-        ResolveFrame((_bwraw and _bwraw.AnchorToFrame) or "UIParent"),
-        (_bwraw and _bwraw.AnchorToPoint) or "TOP",
-        (_bwraw and _bwraw.X ~= nil) and _bwraw.X or 0,
-        (_bwraw and _bwraw.Y ~= nil) and _bwraw.Y or -100)
+    do
+        local _rf_atf = (_bwraw and _bwraw.AnchorToFrame) or "UIParent"
+        local _rf_scr = _rf_atf=="UIParent"
+        local _rf_sap = (_bwraw and _bwraw.ScreenAnchorPoint) or "CENTER"
+        local _rf_ap  = _rf_scr and _rf_sap or ((_bwraw and _bwraw.AnchorPoint) or "CENTER")
+        local _rf_atp = _rf_scr and _rf_sap or ((_bwraw and _bwraw.AnchorToPoint) or "CENTER")
+        _buffWin:SetPoint(_rf_ap, ResolveFrame(_rf_atf), _rf_atp,
+            (_bwraw and _bwraw.X ~= nil) and _bwraw.X or 0,
+            (_bwraw and _bwraw.Y ~= nil) and _bwraw.Y or -100)
+    end
     for _,e in ipairs(_buffSlots) do ApplyBuffIconStyle(e) end
     LayoutBuffIcons()
 end
@@ -1123,6 +1162,21 @@ end
 CT.ShowCustomBuffIcon = ShowCustomBuffIcon
 CT.BuildBuffWindow    = BuildBuffWindow
 CT.GetBuffSlots       = function() return _buffSlots end
+
+    -- Clear visible icons on zone entry/death. Start-time tables are intentionally
+    -- NOT reset here — if the CD start time hasn't changed, the icon won't
+    -- re-fire. This is correct: the buff was consumed before zoning.
+    CT._ClearActiveBuffIcons = function()
+        for _, entry in ipairs(_buffSlots) do
+            if entry.ticker then entry.ticker:Cancel(); entry.ticker = nil end
+            if entry.frame  then entry.frame:Hide() end
+        end
+        -- Clear in-place: do NOT reassign _buffSlots = {} here.
+        -- Reassigning breaks the upvalue shared with GetOrCreateBuffEntry
+        -- and other closures, leaving them holding a stale reference.
+        for i = #_buffSlots, 1, -1 do _buffSlots[i] = nil end
+        LayoutBuffIcons()
+    end
 
 
 -- Populated when SPELL_UPDATE_COOLDOWN / UNIT_SPELLCAST_SUCCEEDED fire.
@@ -1680,6 +1734,47 @@ end
 -- Build all windows
 -- ---------------------------------------------------------------
 local function BuildAllFrames()
+    -- ── Save actual frame positions before teardown ──────────────────────────
+    -- FabsWin_N globals point to the first icon frame of each window.
+    -- Read their real screen position NOW before we hide/destroy them,
+    -- then write those values back into win.X/Y so LayoutWindowFrames
+    -- never reads stale profile data.
+    local d0 = DB()
+    if d0 and d0.Windows then
+        for wi = 1, #d0.Windows do
+            local gf = _G["FabsWin_"..wi]
+            if gf and gf:IsVisible() then
+                local w = d0.Windows[wi]
+                if (w.AnchorToFrame or "UIParent") == "UIParent" then
+                    local pt,_,rpt,fx,fy = gf:GetPoint(1)
+                    if pt then
+                        w.AnchorPoint   = pt
+                        w.AnchorToPoint = rpt
+                        w.AnchorToFrame = "UIParent"
+                        w.X = math.floor(fx+0.5)
+                        w.Y = math.floor(fy+0.5)
+                    end
+                end
+            end
+        end
+    end
+    -- Save buff window position too (skip if anchored to another frame)
+    local bwf = _G["FabsBuffWindow"]
+    if bwf and bwf:IsVisible() and d0 and d0.BuffWindow then
+        local bw = d0.BuffWindow
+        if (bw.AnchorToFrame or "UIParent") == "UIParent" then
+            local pt,_,rpt,fx,fy = bwf:GetPoint(1)
+            if pt then
+                bw.AnchorPoint   = pt
+                bw.AnchorToPoint = rpt
+                bw.AnchorToFrame = "UIParent"
+                bw.X = math.floor(fx+0.5)
+                bw.Y = math.floor(fy+0.5)
+            end
+        end
+    end
+    -- ─────────────────────────────────────────────────────────────────────────
+
     -- Tear down existing
     for _,s in ipairs(iconStructs) do
         if s.ticker then s.ticker:Cancel(); s.ticker=nil end
@@ -1717,9 +1812,12 @@ local function BuildAllFrames()
             f:SetScript("OnDragStop",function(self)
                 self:StopMovingOrSizing()
                 local point,_,relPoint,x,y=self:GetPoint(1)
-                capWin.AnchorPoint=point; capWin.AnchorToPoint=relPoint
+                -- Dragging always produces UIParent-relative coords.
+                -- Force CENTER/CENTER so the anchor points never drift to TOPRIGHT.
+                capWin.AnchorPoint   = "CENTER"
+                capWin.AnchorToPoint = "CENTER"
+                capWin.AnchorToFrame = "UIParent"
                 capWin.X=math.floor(x+0.5); capWin.Y=math.floor(y+0.5)
-                capWin.AnchorToFrame="UIParent"
                 CT:SyncPositionGUI()
             end)
         end
@@ -1825,8 +1923,13 @@ local function OnEvent(_,event,...)
         -- Re-create frames for any newly equipped Midnight items and re-sync CD state.
         -- Use 0.5s delay to let gear/item data fully load after the loading screen.
         C_Timer.After(0.5, function()
+            -- Clear displayed icons; start-time tables are kept so a CD that
+            -- was already running before zoning does NOT re-fire its icon.
+            if CT._ClearActiveBuffIcons then CT._ClearActiveBuffIcons() end
             if CT._PreCreateBuffFrames then CT._PreCreateBuffFrames() end
-            if CT._PrePopulateCDState then CT._PrePopulateCDState() end
+            -- Intentionally NOT calling PrePopulateCDState here:
+            -- start-time tracking handles zone-entry correctly on its own.
+            if CT.RefreshBuffWindow then CT.RefreshBuffWindow() end
             local _now2 = GetTime()
             for _,s in ipairs(iconStructs or {}) do
                 local slot = s.slotRef
@@ -1890,7 +1993,7 @@ local function OnEvent(_,event,...)
                                 local slot = s.slotRef
                                 if slot and slot.customTimerDuration and slot.customTimerDuration > 0 then
                                     local _key="spell_slot_"..tostring(slot)
-                                    ShowCustomBuffIcon(_key, s.spellId, slot.label or "", slot.customTimerDuration)
+                                    ShowCustomBuffIcon(_key, s.spellId, slot.label or "", slot.customTimerDuration, GetSpellTex(s.spellId))
                                 end
                             end
                         end
@@ -1904,7 +2007,7 @@ local function OnEvent(_,event,...)
                                 local slot = s.slotRef
                                 if slot and slot.customTimerDuration and slot.customTimerDuration > 0 then
                                     local _key="spell_slot_"..tostring(slot)
-                                    ShowCustomBuffIcon(_key, s.spellId, slot.label or "", slot.customTimerDuration)
+                                    ShowCustomBuffIcon(_key, s.spellId, slot.label or "", slot.customTimerDuration, GetSpellTex(s.spellId))
                                 end
                             end
                         end
@@ -1913,6 +2016,13 @@ local function OnEvent(_,event,...)
             end
             C_Timer.After(0.05, UpdateAllIcons)
         end
+    elseif event=="PLAYER_DEAD" then
+        if CT._ClearActiveBuffIcons then CT._ClearActiveBuffIcons() end
+    elseif event=="PLAYER_ALIVE" then
+        -- After res, re-seed start times so first use always triggers icon
+        C_Timer.After(0.3, function()
+            if CT._PrePopulateCDState then CT._PrePopulateCDState() end
+        end)
     elseif event=="SPELL_UPDATE_COOLDOWN" then
         CacheAllSpellCDsDebounced()
     elseif event=="PLAYER_REGEN_DISABLED" then
@@ -1934,6 +2044,7 @@ ev:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED"); ev:RegisterEvent("SPELLS_CHANGED")
 ev:RegisterEvent("TRAIT_CONFIG_UPDATED");     ev:RegisterEvent("ITEM_DATA_LOAD_RESULT")
 ev:RegisterEvent("PLAYER_EQUIPMENT_CHANGED"); ev:RegisterEvent("SPELL_UPDATE_COOLDOWN")
 ev:RegisterEvent("PLAYER_REGEN_DISABLED")
+ev:RegisterEvent("PLAYER_DEAD");              ev:RegisterEvent("PLAYER_ALIVE")
 ev:SetScript("OnEvent",OnEvent)
 
 SLASH_CT1="/ct"; SLASH_CT2="/consume"; SLASH_CT3="/consumabletracker"
@@ -2123,18 +2234,14 @@ local function CreateMinimapButton()
 
     local _mouseDownX, _mouseDownY = 0, 0
     local _dragging = false
-    local _didOpen = false
     btn:SetScript("OnMouseDown", function(self, b)
         if b == "LeftButton" then
             _mouseDownX, _mouseDownY = GetCursorPosition()
             _dragging = false
-            _didOpen = false
             self:SetScript("OnUpdate", function()
                 local cx, cy = GetCursorPosition()
                 if not _dragging and (math.abs(cx-_mouseDownX) > 10 or math.abs(cy-_mouseDownY) > 10) then
                     _dragging = true
-                    -- Close GUI if we opened it at mousedown
-                    if _didOpen and CT.ToggleGUI then CT:ToggleGUI() end
                 end
                 if _dragging then
                     local mx, my = Minimap:GetCenter()
@@ -2144,8 +2251,6 @@ local function CreateMinimapButton()
                     PlaceButton(self, angle)
                 end
             end)
-            -- Open immediately on press
-            if CT.ToggleGUI then CT:ToggleGUI(); _didOpen=true end
         elseif b == "RightButton" then
             ConsumableTrackerDB.MinimapHidden = true; self:Hide()
             print("|cFFFFD700Fabs Resource Tracker|r: Minimap button hidden. "
@@ -2154,7 +2259,17 @@ local function CreateMinimapButton()
     end)
     btn:SetScript("OnMouseUp", function(self, b)
         self:SetScript("OnUpdate", nil)
-        _dragging = false; _didOpen = false
+        if b == "LeftButton" and not _dragging then
+            -- Defer to next frame via C_Timer.After(0).
+            -- This breaks out of the mouse-event chain entirely, so WoW
+            -- cannot propagate the click to the newly-built GUI frame
+            -- underneath — which was causing the double-click requirement
+            -- on the first open after every reload / zone transition.
+            C_Timer.After(0, function()
+                if CT.ToggleGUI then CT:ToggleGUI() end
+            end)
+        end
+        _dragging = false
     end)
     PlaceButton(btn,db.MinimapAngle)
     if db.MinimapHidden then btn:Hide() end

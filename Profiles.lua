@@ -135,61 +135,109 @@ local function EnsureProfiles()
     if not d.ActiveProfile then d.ActiveProfile = "Default" end
 end
 
--- Extract only profile-relevant keys from the live DB
+-- Position keys that must NEVER be saved into profiles.
+local POS_KEYS = {"AnchorPoint","AnchorToPoint","AnchorToFrame","X","Y"}
+
+local function StripPositions(tbl)
+    if type(tbl) ~= "table" then return tbl end
+    local out = {}
+    for k,v in pairs(tbl) do
+        local skip = false
+        for _,pk in ipairs(POS_KEYS) do if k==pk then skip=true; break end end
+        if not skip then
+            out[k] = type(v)=="table" and StripPositions(v) or v
+        end
+    end
+    return out
+end
+
+-- Read actual on-screen positions of every window frame and the buff window.
+-- Falls back to current DB values if frames aren't visible yet.
+local function CapturePositions()
+    local pos = {wins={}}
+    local d = DB()
+    if d and d.Windows then
+        for i=1,#d.Windows do
+            local f = _G["FabsWin_"..i]
+            local pt,rpt,fx,fy
+            if f and f:IsVisible() then
+                pt,_,rpt,fx,fy = f:GetPoint(1)
+            end
+            local w = d.Windows[i]
+            pos.wins[i] = {
+                AnchorPoint   = pt   or (w and w.AnchorPoint)   or "CENTER",
+                AnchorToPoint = rpt  or (w and w.AnchorToPoint) or "CENTER",
+                AnchorToFrame = "UIParent",
+                X = fx and math.floor(fx+0.5) or (w and w.X) or 0,
+                Y = fy and math.floor(fy+0.5) or (w and w.Y) or 0,
+            }
+        end
+    end
+    local bf = _G["FabsBuffWindow"]
+    local bpt,brpt,bx,by
+    if bf and bf:IsVisible() then
+        bpt,_,brpt,bx,by = bf:GetPoint(1)
+    end
+    local bw = d and d.BuffWindow
+    pos.buff = {
+        AnchorPoint   = bpt  or (bw and bw.AnchorPoint)   or "CENTER",
+        AnchorToPoint = brpt or (bw and bw.AnchorToPoint) or "CENTER",
+        AnchorToFrame = "UIParent",
+        X = bx and math.floor(bx+0.5) or (bw and bw.X) or 0,
+        Y = by and math.floor(by+0.5) or (bw and bw.Y) or 0,
+    }
+    return pos
+end
+
+local function ApplyPositions(pos)
+    if not pos then return end
+    local d = DB()
+    if not d then return end
+    -- Buff window
+    if pos.buff then
+        d.BuffWindow = d.BuffWindow or {}
+        for _,k in ipairs(POS_KEYS) do d.BuffWindow[k] = pos.buff[k] end
+    end
+    -- Main windows — only apply to windows that exist in the new profile
+    if pos.wins and d.Windows then
+        for i,wp in pairs(pos.wins) do
+            if d.Windows[i] then
+                for _,k in ipairs(POS_KEYS) do d.Windows[i][k] = wp[k] end
+            end
+        end
+    end
+end
+
+-- Extract only profile-relevant keys, with all positions stripped out
 local function SnapshotLiveDB()
     local snap = {}
     local d = DB()
-    for _, k in ipairs(PROFILE_KEYS) do
+    for _,k in ipairs(PROFILE_KEYS) do
         if d[k] ~= nil then
-            snap[k] = DeepCopy(d[k])
+            snap[k] = StripPositions(DeepCopy(d[k]))
         end
     end
     return snap
 end
 
-local function CaptureBuffWindowAnchor()
+-- Apply a snapshot: positions are NEVER part of the profile and always survive
+local function ApplySnapshot(snap)
     local d = DB()
-    local bw = d and d.BuffWindow
-    if not bw then return nil end
-    return {
-        AnchorPoint   = bw.AnchorPoint,
-        AnchorToFrame = bw.AnchorToFrame,
-        AnchorToPoint = bw.AnchorToPoint,
-        X             = bw.X,
-        Y             = bw.Y,
-    }
-end
-
-local function RestoreBuffWindowAnchor(anchor)
-    if type(anchor) ~= "table" then return end
-    local d = DB()
-    if not d then return end
-    d.BuffWindow = d.BuffWindow or {}
-    d.BuffWindow.AnchorPoint   = anchor.AnchorPoint   or d.BuffWindow.AnchorPoint
-    d.BuffWindow.AnchorToFrame = anchor.AnchorToFrame or d.BuffWindow.AnchorToFrame or "UIParent"
-    d.BuffWindow.AnchorToPoint = anchor.AnchorToPoint or d.BuffWindow.AnchorToPoint
-    if anchor.X ~= nil then d.BuffWindow.X = anchor.X end
-    if anchor.Y ~= nil then d.BuffWindow.Y = anchor.Y end
-end
-
--- Apply a snapshot back into the live DB and refresh the addon
-local function ApplySnapshot(snap, preserveBuffAnchor)
-    local d = DB()
-    local liveBuffAnchor = preserveBuffAnchor and CaptureBuffWindowAnchor() or nil
-    for _, k in ipairs(PROFILE_KEYS) do
-        d[k] = nil
+    -- 1. Save current on-screen positions BEFORE changing anything
+    local savedPos = CapturePositions()
+    -- 2. Replace profile data
+    for _,k in ipairs(PROFILE_KEYS) do d[k] = nil end
+    for _,k in ipairs(PROFILE_KEYS) do
+        if snap[k] ~= nil then d[k] = DeepCopy(snap[k]) end
     end
-    for _, k in ipairs(PROFILE_KEYS) do
-        if snap[k] ~= nil then
-            d[k] = DeepCopy(snap[k])
-        end
-    end
-    if liveBuffAnchor then
-        RestoreBuffWindowAnchor(liveBuffAnchor)
-    end
+    -- 3. Write saved positions back — profile data never wins over live positions
+    ApplyPositions(savedPos)
+    -- 4. Refresh
     if CT.RefreshLayout then CT:RefreshLayout() end
     if CT.RefreshBuffWindow then CT.RefreshBuffWindow() end
-    if CT._RebuildGUI then CT._RebuildGUI() end
+    C_Timer.After(0.05, function()
+        if CT._RebuildGUI then CT._RebuildGUI() end
+    end)
 end
 
 -- ---------------------------------------------------------------
@@ -231,27 +279,30 @@ function CT:CreateProfile(name)
     EnsureProfiles()
     local d = DB()
     local current = d.ActiveProfile or "Default"
-    d.Profiles[current] = SnapshotLiveDB()
-    d.Profiles[name] = {}
-    d.ActiveProfile  = name
-    ApplySnapshot(d.Profiles[name], true)
+    -- Save current state into both the outgoing profile and the new one
+    local snap = SnapshotLiveDB()
+    d.Profiles[current] = snap
+    d.Profiles[name]    = DeepCopy(snap)
+    d.ActiveProfile     = name
+    -- No ApplySnapshot needed — settings are already live
     return true, nil
 end
 
---- Switch to an existing profile (or create it empty if new).
+--- Switch to an existing profile (or create a copy of the current one if new).
 function CT:SwitchProfile(name)
     if not name or name == "" then return false, "Profile name cannot be empty" end
     EnsureProfiles()
     local d = DB()
-    -- Save current settings into the outgoing profile first
+    -- Save current settings into the outgoing profile
     local current = d.ActiveProfile or "Default"
     d.Profiles[current] = SnapshotLiveDB()
     -- Switch
     d.ActiveProfile = name
     if not d.Profiles[name] then
-        d.Profiles[name] = {}
+        -- Brand-new name: start as a copy of current settings
+        d.Profiles[name] = DeepCopy(d.Profiles[current])
     end
-    ApplySnapshot(d.Profiles[name], true)
+    ApplySnapshot(d.Profiles[name])
     return true, nil
 end
 
@@ -281,17 +332,15 @@ end
 function CT:ResetProfile()
     EnsureProfiles()
     local d = DB()
-    -- Wipe profile-relevant keys and let MigrateToWindows rebuild on next RefreshLayout
-    d.Windows       = nil
-    d.BuffWindow    = nil
-    d.SectionOrder  = nil
-    d.EquipBlacklist= nil
-    d.GUIFontSize   = nil
-    d.ShowTooltips  = nil
-    -- Save the wiped state into the profile slot
+    local savedPos = CapturePositions()
+    d.Windows=nil; d.BuffWindow=nil; d.SectionOrder=nil
+    d.EquipBlacklist=nil; d.GUIFontSize=nil; d.ShowTooltips=nil
+    ApplyPositions(savedPos)
     local name = d.ActiveProfile or "Default"
     d.Profiles[name] = SnapshotLiveDB()
-    ApplySnapshot(d.Profiles[name], true)
+    if CT.RefreshLayout then CT:RefreshLayout() end
+    if CT.RefreshBuffWindow then CT.RefreshBuffWindow() end
+    C_Timer.After(0.05, function() if CT._RebuildGUI then CT._RebuildGUI() end end)
 end
 
 --- Export the active profile as a shareable string.
@@ -338,7 +387,7 @@ function CT:ImportProfile(importStr, name)
     d.Profiles[name] = DeepCopy(payload.profile)
     -- If importing into the active profile, apply immediately
     if (d.ActiveProfile or "Default") == name then
-        ApplySnapshot(d.Profiles[name], true)
+        ApplySnapshot(d.Profiles[name])
     end
     return true, nil
 end

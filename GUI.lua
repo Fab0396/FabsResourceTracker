@@ -3,7 +3,7 @@ CT = CT or {}
 
 local GUIFrame=nil
 
-local W=820; local H=760; local TITLE_H=34; local SIDE_W=172; local SCRL_W=11
+local W=980; local H=760; local TITLE_H=34; local SIDE_W=190; local SCRL_W=11
 local PAGE_W=W-SIDE_W-SCRL_W-3; local ML=16; local EW=PAGE_W-ML-6
 
 -- Live font registry: all GUI font strings register here so size changes apply instantly
@@ -92,7 +92,7 @@ for _,v in ipairs(EQUIP_SLOT_LIST) do SLOT_BY_NUMBER[v.slot]=v.label end
 -- Type badge colours
 local TYPE_COLORS={
     healthstone={0.60,0.20,0.80},
-    group=      {0.24,0.49,0.73},
+    group=      {1.0, 0.75, 0.0},
     spell=      {0.25,0.75,0.25},
     item=       {0.85,0.45,0.10},
     equip=      {0.10,0.65,0.65},
@@ -100,10 +100,18 @@ local TYPE_COLORS={
 local TYPE_LABELS={healthstone="HS",group="GR",spell="SP",item="IT",equip="EQ"}
 
 local function ClassHex()
-    local _,cls=UnitClass("player")
-    local cc=cls and RAID_CLASS_COLORS and RAID_CLASS_COLORS[cls]
-    if cc then return string.format("%02x%02x%02x",cc.r*255,cc.g*255,cc.b*255) end
-    return "4d9aff"
+    -- Class colour for title and section headers; gold fallback
+    local _,cls = UnitClass("player")
+    local cc = cls and RAID_CLASS_COLORS and RAID_CLASS_COLORS[cls]
+    if cc then return string.format("%02x%02x%02x", cc.r*255, cc.g*255, cc.b*255) end
+    return "FFD200"
+end
+local function ClassRGB()
+    -- Returns r,g,b of the player's class colour; falls back to gold
+    local _,cls = UnitClass("player")
+    local cc = cls and RAID_CLASS_COLORS and RAID_CLASS_COLORS[cls]
+    if cc then return cc.r, cc.g, cc.b end
+    return 1.0, 0.82, 0.0
 end
 
 local function BD(f,r,g,b,a,er,eg,eb,ea)
@@ -113,7 +121,7 @@ local function BD(f,r,g,b,a,er,eg,eb,ea)
 end
 
 local function WHeader(page,text,y)
-    local sep=page:CreateTexture(nil,"ARTWORK"); sep:SetHeight(1); sep:SetColorTexture(0.15,0.15,0.15,1)
+    local sep=page:CreateTexture(nil,"ARTWORK"); sep:SetHeight(1); sep:SetColorTexture(0.08,0.08,0.08,1)
     sep:SetPoint("TOPLEFT",page,"TOPLEFT",0,-y); sep:SetWidth(PAGE_W); y=y+5
     local fs=page:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
     fs:SetText("|cFF"..ClassHex()..text.."|r")
@@ -136,7 +144,7 @@ local function WCheck(page,label,x,y,getV,setV)
     local function Refresh()
         local v=getV()~=false
         check:SetAlpha(v and 1 or 0)
-        if v then BD(cb,0.12,0.25,0.40,1,0.24,0.49,0.73) else BD(cb,0.08,0.08,0.08,1,0.40,0.40,0.40) end
+        if v then BD(cb,0.13,0.10,0.01,1,0.55,0.44,0.0) else BD(cb,0.08,0.08,0.08,1,0.40,0.40,0.40) end
     end
     Refresh()
     cb:SetScript("OnClick",function()
@@ -164,10 +172,10 @@ local function WSlider(page,label,minV,maxV,x,y,getV,setV,w,step)
     local vb=CreateFrame("EditBox",nil,page,"InputBoxTemplate"); vb:SetSize(64,19); vb:SetPoint("TOPLEFT",page,"TOPLEFT",x+w-64,-(y+1))
     GFSReg(vb,11)
     vb:SetAutoFocus(false)
-    vb:SetTextColor(1.0,0.82,0.0,1); vb:SetTextInsets(4,4,0,0); vb:SetJustifyH("CENTER")
+    vb:SetTextColor(ClassRGB()); vb:SetTextInsets(4,4,0,0); vb:SetJustifyH("CENTER")
     local tr=CreateFrame("Frame",nil,page,"BackdropTemplate"); tr:SetPoint("TOPLEFT",page,"TOPLEFT",x,-(y+24)); tr:SetSize(w,8)
     BD(tr,0.09,0.09,0.09,1,0.22,0.22,0.22)
-    local fill=tr:CreateTexture(nil,"ARTWORK"); fill:SetColorTexture(0.24,0.49,0.73,1)
+    local fill=tr:CreateTexture(nil,"ARTWORK"); fill:SetColorTexture(ClassRGB())
     fill:SetPoint("TOPLEFT",tr,"TOPLEFT",1,-1); fill:SetPoint("BOTTOMLEFT",tr,"BOTTOMLEFT",1,1); fill:SetWidth(1)
     local lmi=page:CreateFontString(nil,"OVERLAY"); lmi:SetFont("Fonts\\ARIALN.TTF",9,""); lmi:SetTextColor(0.45,0.45,0.45,1)
     lmi:SetText(Fmt(minV)); lmi:SetPoint("TOPLEFT",tr,"BOTTOMLEFT",0,-2)
@@ -176,7 +184,7 @@ local function WSlider(page,label,minV,maxV,x,y,getV,setV,w,step)
     local sl=CreateFrame("Slider",nil,page); sl:SetPoint("TOPLEFT",tr,"TOPLEFT",0,4); sl:SetPoint("TOPRIGHT",tr,"TOPRIGHT",0,4)
     sl:SetHeight(16); sl:SetMinMaxValues(minV,maxV); sl:SetValueStep(step); sl:SetObeyStepOnDrag(true)
     sl:SetOrientation("HORIZONTAL"); sl:SetThumbTexture("Interface\\Buttons\\WHITE8X8")
-    local th=sl:GetThumbTexture(); th:SetSize(8,16); th:SetColorTexture(0.24,0.49,0.73,1)
+    local th=sl:GetThumbTexture(); th:SetSize(8,16); th:SetColorTexture(ClassRGB())
     local busy=false
     local function Refill(v) local tw=tr:GetWidth()-2; if tw>1 then fill:SetWidth(math.max(1,tw*((v-minV)/math.max(0.001,maxV-minV)))) end end
     local function Sync(v)
@@ -203,7 +211,7 @@ local function WColor(page,label,x,y,getC,setC)
             cancelFunc=function() setC(prev); Ref(); if CT.Refresh and not _guiBuilding then CT:Refresh() end end,
             hasOpacity=true,opacity=1-(c[4] or 1),r=c[1],g=c[2],b=c[3]})
     end)
-    sw:SetScript("OnEnter",function() sw:SetBackdropBorderColor(0.24,0.49,0.73,1) end)
+    sw:SetScript("OnEnter",function() sw:SetBackdropBorderColor(1.0,0.82,0.0,1) end)
     sw:SetScript("OnLeave",function() Ref() end)
     return y+24
 end
@@ -227,7 +235,7 @@ local function WDropdown(page,label,items,x,y,w,getV,setV)
         local IH=18; local vis=math.min(#items,10)
         local pop=CreateFrame("Frame",nil,UIParent,"BackdropTemplate"); pop:SetWidth(w); pop:SetHeight(vis*IH+2)
         pop:SetPoint("TOPLEFT",bar,"BOTTOMLEFT",0,-1); pop:SetFrameStrata("TOOLTIP"); pop:SetFrameLevel(300)
-        BD(pop,0.08,0.08,0.08,1,0.24,0.49,0.73)
+        BD(pop,0.06,0.06,0.06,1,0.55,0.44,0.0)
         local clip=CreateFrame("Frame",nil,pop); clip:SetClipsChildren(true)
         clip:SetPoint("TOPLEFT",pop,"TOPLEFT",1,-1); clip:SetPoint("BOTTOMRIGHT",pop,"BOTTOMRIGHT",-1,1)
         local inner=CreateFrame("Frame",nil,clip); inner:SetWidth(w-2); inner:SetHeight(#items*IH); inner:SetPoint("TOPLEFT")
@@ -238,7 +246,7 @@ local function WDropdown(page,label,items,x,y,w,getV,setV)
         for i,it in ipairs(items) do
             local row=CreateFrame("Button",nil,inner,"BackdropTemplate")
             row:SetPoint("TOPLEFT",inner,"TOPLEFT",0,-(i-1)*IH); row:SetPoint("TOPRIGHT",inner,"TOPRIGHT",0,-(i-1)*IH); row:SetHeight(IH)
-            local act=(it.value==getV()); BD(row,act and 0.18 or 0.09,act and 0.37 or 0.09,act and 0.58 or 0.09,1,0,0,0)
+            local act=(it.value==getV()); BD(row,act and 0.14 or 0.09,act and 0.11 or 0.09,act and 0.01 or 0.09,1,0,0,0)
             local rl=row:CreateFontString(nil,"OVERLAY"); rl:SetFont("Fonts\\ARIALN.TTF",GFS(),""); rl:SetTextColor(0.9,0.9,0.9,1)
             rl:SetText(it.label); rl:SetPoint("LEFT",row,"LEFT",6,0)
             row:SetScript("OnEnter",function() row:SetBackdropColor(0.18,0.18,0.18,1); rl:SetTextColor(1,1,1,1) end)
@@ -419,21 +427,96 @@ end
 local function BuildPagePosition(page)
     local y=10
     y=WHeader(page,"Anchor",y)
+
+    local UpdateWinPointVis  -- forward declare
+    local cfBox              -- forward declare
+
+    -- Preset dropdown (left) + Screen anchor inline to the right
+    -- WDropdown returns y+28 after placing bar at (x, -(y+16)) due to label.
+    -- We capture y before so we can place SAP at the exact same rows.
+    local _yBeforePreset = y
     y=WDropdown(page,"Anchor to frame preset:",ANCHOR_FRAMES,ML,y,270,
-        function() for _,it in ipairs(ANCHOR_FRAMES) do if it.value==WinDB().AnchorToFrame then return it.value end end; return "_custom_" end,
-        function(v) if v~="_custom_" then WinDB().AnchorToFrame=v end end)
-    local cfLbl=page:CreateFontString(nil,"OVERLAY"); cfLbl:SetFont("Fonts\\ARIALN.TTF",GFS(),""); cfLbl:SetTextColor(0.9,0.9,0.9,1)
-    cfLbl:SetText("Custom frame name:"); cfLbl:SetPoint("TOPLEFT",page,"TOPLEFT",ML,-y); cfLbl:SetWidth(EW); y=y+16
-    local cfBox=CreateFrame("EditBox",nil,page,"InputBoxTemplate"); cfBox:SetSize(270,20); cfBox:SetPoint("TOPLEFT",page,"TOPLEFT",ML,-y)
-    cfBox:SetAutoFocus(false)
-    cfBox:SetTextColor(0.9,0.9,0.9,1); cfBox:SetTextInsets(6,6,0,0); cfBox:SetText(WinDB().AnchorToFrame or "UIParent")
+        function()
+            for _,it in ipairs(ANCHOR_FRAMES) do
+                if it.value==WinDB().AnchorToFrame then return it.value end
+            end
+            return "_custom_"
+        end,
+        function(v)
+            if v~="_custom_" then
+                WinDB().AnchorToFrame = v
+                if cfBox then cfBox:SetText(v) end
+                if UpdateWinPointVis then UpdateWinPointVis() end
+                if CT.Refresh and not _guiBuilding then CT:Refresh() end
+            end
+        end)
+    -- SAP label inline with the preset label row
+    local sapLblW=page:CreateFontString(nil,"OVERLAY")
+    sapLblW:SetFont("Fonts\\ARIALN.TTF",GFS(),""); sapLblW:SetTextColor(0.9,0.9,0.9,1)
+    sapLblW:SetText("Screen anchor:"); sapLblW:SetPoint("TOPLEFT",page,"TOPLEFT",ML+292,-_yBeforePreset)
+    -- SAP bar inline with the preset bar row (bar sits at _yBeforePreset+16)
+    local _,sapBarW,sapCurW=WDropdown(page,"",ANCHORS,ML+292,_yBeforePreset+16,196,
+        function() return WinDB().ScreenAnchorPoint or "CENTER" end,
+        function(v)
+            WinDB().ScreenAnchorPoint=v
+            if CT.Refresh and not _guiBuilding then CT:Refresh() end
+        end)
+
+    -- Custom frame name box
+    local cfLbl=page:CreateFontString(nil,"OVERLAY")
+    cfLbl:SetFont("Fonts\\ARIALN.TTF",GFS(),""); cfLbl:SetTextColor(0.6,0.6,0.6,1)
+    cfLbl:SetText("Custom frame name:"); cfLbl:SetPoint("TOPLEFT",page,"TOPLEFT",ML,-y); cfLbl:SetWidth(EW)
+    y=y+16
+    cfBox=CreateFrame("EditBox",nil,page,"InputBoxTemplate")
+    cfBox:SetSize(270,20); cfBox:SetPoint("TOPLEFT",page,"TOPLEFT",ML,-y)
+    cfBox:SetAutoFocus(false); cfBox:SetFont("Fonts\\ARIALN.TTF",GFS(),"")
+    cfBox:SetTextColor(0.9,0.9,0.9,1); cfBox:SetTextInsets(6,6,0,0)
+    cfBox:SetText(WinDB().AnchorToFrame or "UIParent")
     cfBox:SetScript("OnEscapePressed",function(sv) sv:ClearFocus() end)
-    cfBox:SetScript("OnEnterPressed",function(sv) WinDB().AnchorToFrame=sv:GetText(); if CT.Refresh and not _guiBuilding then CT:Refresh() end; sv:ClearFocus() end)
-    y=y+28; y=WTip(page,"e.g. PlayerFrame, ElvUF_Player, Minimap, UIParent",ML,y)
-    local apLbl=page:CreateFontString(nil,"OVERLAY"); apLbl:SetFont("Fonts\\ARIALN.TTF",GFS(),""); apLbl:SetTextColor(0.9,0.9,0.9,1); apLbl:SetText("Icon anchor:"); apLbl:SetPoint("TOPLEFT",page,"TOPLEFT",ML,-y)
-    local rpLbl=page:CreateFontString(nil,"OVERLAY"); rpLbl:SetFont("Fonts\\ARIALN.TTF",GFS(),""); rpLbl:SetTextColor(0.9,0.9,0.9,1); rpLbl:SetText("Target point:"); rpLbl:SetPoint("TOPLEFT",page,"TOPLEFT",ML+260,-y); y=y+16
-    WDropdown(page,"",ANCHORS,ML,y,240,function() return WinDB().AnchorPoint or "CENTER" end,function(v) WinDB().AnchorPoint=v end)
-    WDropdown(page,"",ANCHORS,ML+260,y,240,function() return WinDB().AnchorToPoint or "CENTER" end,function(v) WinDB().AnchorToPoint=v end); y=y+28
+    cfBox:SetScript("OnEnterPressed",function(sv)
+        local v=sv:GetText()
+        WinDB().AnchorToFrame = v
+        if UpdateWinPointVis then UpdateWinPointVis() end
+        if CT.Refresh and not _guiBuilding then CT:Refresh() end
+        sv:ClearFocus()
+    end)
+    y=y+28
+    y=WTip(page,"e.g. PlayerFrame, ElvUF_Player, Minimap, UIParent",ML,y)
+
+    -- Icon Anchor + Target Point (greyed when UIParent — use Screen anchor instead)
+    local apLbl=page:CreateFontString(nil,"OVERLAY")
+    apLbl:SetFont("Fonts\\ARIALN.TTF",GFS(),""); apLbl:SetTextColor(0.9,0.9,0.9,1)
+    apLbl:SetText("Icon anchor:"); apLbl:SetPoint("TOPLEFT",page,"TOPLEFT",ML,-y)
+    local rpLbl=page:CreateFontString(nil,"OVERLAY")
+    rpLbl:SetFont("Fonts\\ARIALN.TTF",GFS(),""); rpLbl:SetTextColor(0.9,0.9,0.9,1)
+    rpLbl:SetText("Target point:"); rpLbl:SetPoint("TOPLEFT",page,"TOPLEFT",ML+260,-y)
+    y=y+16
+    local _,apBar,apCur=WDropdown(page,"",ANCHORS,ML,y,240,
+        function() return WinDB().AnchorPoint or "CENTER" end,
+        function(v) WinDB().AnchorPoint=v; if CT.Refresh and not _guiBuilding then CT:Refresh() end end)
+    local _,rpBar,rpCur=WDropdown(page,"",ANCHORS,ML+260,y,240,
+        function() return WinDB().AnchorToPoint or "CENTER" end,
+        function(v) WinDB().AnchorToPoint=v; if CT.Refresh and not _guiBuilding then CT:Refresh() end end)
+    y=y+28
+
+    -- UpdateWinPointVis: grey Screen anchor when not UIParent, grey Icon/Target when UIParent
+    UpdateWinPointVis=function()
+        local isScreen=(WinDB().AnchorToFrame or "UIParent")=="UIParent"
+        local function AL(v) for _,it in ipairs(ANCHORS) do if it.value==v then return it.label end end; return tostring(v or "") end
+        -- Screen anchor: active only when UIParent
+        local sapA = isScreen and 1 or 0.3
+        sapLblW:SetAlpha(sapA)
+        if sapBarW then sapBarW:SetAlpha(sapA); sapBarW:EnableMouse(isScreen) end
+        if sapCurW then sapCurW:SetText(AL(WinDB().ScreenAnchorPoint or "CENTER")) end
+        -- Icon anchor / Target point: active only when NOT UIParent
+        local frmA = isScreen and 0.3 or 1
+        apLbl:SetAlpha(frmA); rpLbl:SetAlpha(frmA)
+        if apBar then apBar:SetAlpha(frmA); apBar:EnableMouse(not isScreen) end
+        if rpBar then rpBar:SetAlpha(frmA); rpBar:EnableMouse(not isScreen) end
+        if apCur then apCur:SetText(AL(WinDB().AnchorPoint or "CENTER")) end
+        if rpCur then rpCur:SetText(AL(WinDB().AnchorToPoint or "CENTER")) end
+    end
+    UpdateWinPointVis()
 
     -- ---- Window-to-Window Anchor ----
     y=WHeader(page,"Anchor to Another Window",y)
@@ -488,11 +571,11 @@ local function BuildPagePosition(page)
 
     -- Apply button
     local applyWABtn=CreateFrame("Button",nil,page,"BackdropTemplate"); applyWABtn:SetSize(EW,24); applyWABtn:SetPoint("TOPLEFT",page,"TOPLEFT",ML,-y)
-    BD(applyWABtn,0.08,0.14,0.22,1,0.24,0.49,0.73)
-    local awl=applyWABtn:CreateFontString(nil,"OVERLAY"); awl:SetFont("Fonts\\ARIALN.TTF",GFS(),""); awl:SetTextColor(0.5,0.8,1.0,1)
+    BD(applyWABtn,0.12,0.10,0.01,1,0.55,0.44,0.0)
+    local awl=applyWABtn:CreateFontString(nil,"OVERLAY"); awl:SetFont("Fonts\\ARIALN.TTF",GFS(),""); awl:SetTextColor(1.0,0.82,0.0,1)
     awl:SetText("Apply Window Anchor"); awl:SetAllPoints(); awl:SetJustifyH("CENTER")
-    applyWABtn:SetScript("OnEnter",function() applyWABtn:SetBackdropColor(0.12,0.22,0.38,1); applyWABtn:SetBackdropBorderColor(0.35,0.65,1.0,1); awl:SetTextColor(1,1,1,1) end)
-    applyWABtn:SetScript("OnLeave",function() BD(applyWABtn,0.08,0.14,0.22,1,0.24,0.49,0.73); awl:SetTextColor(0.5,0.8,1.0,1) end)
+    applyWABtn:SetScript("OnEnter",function() applyWABtn:SetBackdropColor(0.20,0.16,0.02,1); applyWABtn:SetBackdropBorderColor(1.0,0.82,0.0,1); awl:SetTextColor(1,1,1,1) end)
+    applyWABtn:SetScript("OnLeave",function() BD(applyWABtn,0.12,0.10,0.01,1,0.55,0.44,0.0); awl:SetTextColor(1.0,0.82,0.0,1) end)
     applyWABtn:SetScript("OnClick",function()
         if not winAnchorTarget or winAnchorTarget=="" then ShowStat("|cFFFF4444Select a target window first|r"); return end
         WinDB().AnchorToFrame = winAnchorTarget
@@ -503,7 +586,7 @@ local function BuildPagePosition(page)
         -- RefreshLayout (full rebuild) so FabsWin_ globals are registered in window order
         if CT.RefreshLayout then CT:RefreshLayout() end
         if CT.SyncPositionGUI then CT.SyncPositionGUI() end
-        FlashBtn(applyWABtn,awl,"Anchored!","Apply Window Anchor",0.08,0.14,0.22,0.24,0.49,0.73)
+        FlashBtn(applyWABtn,awl,"Anchored!","Apply Window Anchor",0.12,0.10,0.01,0.55,0.44,0.0)
     end); y=y+30
     y=WHeader(page,"Offset",y)
     local slX,vbX,slY,vbY
@@ -515,14 +598,14 @@ local function BuildPagePosition(page)
         local function Snap(v) return math.floor(v+0.5) end
         local lbl2=page:CreateFontString(nil,"OVERLAY"); lbl2:SetFont("Fonts\\ARIALN.TTF",GFS(),""); lbl2:SetTextColor(0.9,0.9,0.9,1); lbl2:SetText(lbl); lbl2:SetPoint("TOPLEFT",page,"TOPLEFT",0,-y); lbl2:SetWidth(w+ML); lbl2:SetJustifyH("CENTER")
         local vb=CreateFrame("EditBox",nil,page,"InputBoxTemplate"); vb:SetSize(64,19); vb:SetPoint("TOPLEFT",page,"TOPLEFT",ML+w-64,-(y+1))
-        vb:SetAutoFocus(false); vb:SetFont("Fonts\\ARIALN.TTF",GFS(),""); vb:SetTextColor(1.0,0.82,0.0,1); vb:SetTextInsets(4,4,0,0); vb:SetJustifyH("CENTER")
+        vb:SetAutoFocus(false); vb:SetFont("Fonts\\ARIALN.TTF",GFS(),""); vb:SetTextColor(ClassRGB()); vb:SetTextInsets(4,4,0,0); vb:SetJustifyH("CENTER")
         local tr=CreateFrame("Frame",nil,page,"BackdropTemplate"); tr:SetPoint("TOPLEFT",page,"TOPLEFT",ML,-(y+24)); tr:SetSize(w,8); BD(tr,0.09,0.09,0.09,1,0.22,0.22,0.22)
-        local fill=tr:CreateTexture(nil,"ARTWORK"); fill:SetColorTexture(0.24,0.49,0.73,1); fill:SetPoint("TOPLEFT",tr,"TOPLEFT",1,-1); fill:SetPoint("BOTTOMLEFT",tr,"BOTTOMLEFT",1,1); fill:SetWidth(1)
+        local fill=tr:CreateTexture(nil,"ARTWORK"); do local cr,cg,cb=ClassRGB(); fill:SetColorTexture(cr,cg,cb,1) end; fill:SetPoint("TOPLEFT",tr,"TOPLEFT",1,-1); fill:SetPoint("BOTTOMLEFT",tr,"BOTTOMLEFT",1,1); fill:SetWidth(1)
         local lmi2=page:CreateFontString(nil,"OVERLAY"); lmi2:SetFont("Fonts\\ARIALN.TTF",9,""); lmi2:SetTextColor(0.45,0.45,0.45,1); lmi2:SetText(Fmt(minV)); lmi2:SetPoint("TOPLEFT",tr,"BOTTOMLEFT",0,-2)
         local lma2=page:CreateFontString(nil,"OVERLAY"); lma2:SetFont("Fonts\\ARIALN.TTF",9,""); lma2:SetTextColor(0.45,0.45,0.45,1); lma2:SetText(Fmt(maxV)); lma2:SetPoint("TOPRIGHT",tr,"BOTTOMRIGHT",0,-2)
         local sl=CreateFrame("Slider",nil,page); sl:SetPoint("TOPLEFT",tr,"TOPLEFT",0,4); sl:SetPoint("TOPRIGHT",tr,"TOPRIGHT",0,4)
         sl:SetHeight(16); sl:SetMinMaxValues(minV,maxV); sl:SetValueStep(1); sl:SetObeyStepOnDrag(true); sl:SetOrientation("HORIZONTAL"); sl:SetThumbTexture("Interface\\Buttons\\WHITE8X8")
-        local th=sl:GetThumbTexture(); th:SetSize(8,16); th:SetColorTexture(0.24,0.49,0.73,1)
+        local th=sl:GetThumbTexture(); th:SetSize(8,16); do local cr,cg,cb=ClassRGB(); th:SetColorTexture(cr,cg,cb,1) end
         local busy=false
         local function Refill(v) local tw=tr:GetWidth()-2; if tw>1 then fill:SetWidth(math.max(1,tw*((v-minV)/math.max(1,maxV-minV)))) end end
         local function Sync(v) if busy then return end; busy=true; v=Snap(math.max(minV,math.min(maxV,v))); sl:SetValue(v); vb:SetText(Fmt(v)); Refill(v); setV(v); if CT.Refresh and not _guiBuilding then CT:Refresh() end; busy=false end
@@ -859,7 +942,7 @@ local function BuildPageAllIcons(page)
             local ci=i; local sel=(i==_selectedWinIdx)
             local btn=CreateFrame("Button",nil,winPopup,"BackdropTemplate"); btn:SetHeight(24)
             btn:SetPoint("TOPLEFT",winPopup,"TOPLEFT",2,-ph); btn:SetPoint("TOPRIGHT",winPopup,"TOPRIGHT",-2,-ph)
-            BD(btn,sel and 0.16 or 0.08,sel and 0.34 or 0.08,sel and 0.55 or 0.08,1,sel and 0.24 or 0.18,sel and 0.49 or 0.18,sel and 0.73 or 0.18,1)
+            BD(btn,sel and 0.14 or 0.08,sel and 0.11 or 0.08,sel and 0.01 or 0.08,1,sel and 0.55 or 0.18,sel and 0.44 or 0.18,sel and 0.00 or 0.18,1)
             local bl=btn:CreateFontString(nil,"OVERLAY"); bl:SetFont("Fonts\\ARIALN.TTF",11,""); bl:SetTextColor(1,1,1,1)
             bl:SetPoint("LEFT",btn,"LEFT",8,0); bl:SetText((w.Name or "Window "..i)..(sel and " *" or ""))
             btn:SetScript("OnEnter",function() btn:SetBackdropColor(0.20,0.42,0.65,1) end)
@@ -927,7 +1010,7 @@ local function BuildPageAllIcons(page)
     local function ShowTab(idx)
         activeTab=idx
         for i,tb in ipairs(tabBtns) do
-            if i==idx then BD(tb,0.18,0.37,0.58,1,0.24,0.49,0.73,1); tb._lbl:SetTextColor(1,1,1,1)
+            if i==idx then BD(tb,0.10,0.10,0.10,1,0.30,0.30,0.30,1); do local cr,cg,cb=ClassRGB(); tb._lbl:SetTextColor(cr,cg,cb,1) end
             else BD(tb,0.09,0.09,0.09,1,0.22,0.22,0.22,1); tb._lbl:SetTextColor(0.7,0.7,0.7,1) end
         end
         for i,p in ipairs(tabPanels) do p:SetShown(i==idx) end
@@ -941,7 +1024,7 @@ local function BuildPageAllIcons(page)
         local tl=tb:CreateFontString(nil,"OVERLAY"); tl:SetFont("Fonts\\ARIALN.TTF",GFS(),"")
         tl:SetTextColor(0.7,0.7,0.7,1); tl:SetText(name); tl:SetAllPoints(); tl:SetJustifyH("CENTER")
         tb._lbl=tl
-        tb:SetScript("OnEnter",function() if i~=activeTab then tb:SetBackdropBorderColor(0.5,0.7,1,1) end end)
+        tb:SetScript("OnEnter",function() if i~=activeTab then local cr,cg,cb=ClassRGB(); tb:SetBackdropBorderColor(cr,cg,cb,1) end end)
         tb:SetScript("OnLeave",function() ShowTab(activeTab) end)
         tb:SetScript("OnClick",function() ShowTab(i) end)
         tabBtns[i]=tb
@@ -1368,7 +1451,7 @@ local function BuildPageAllIcons(page)
         local iPriLbl=p:CreateFontString(nil,"OVERLAY"); iPriLbl:SetFont("Fonts\\ARIALN.TTF",10,""); iPriLbl:SetTextColor(0.7,0.7,0.7,1); iPriLbl:SetText("Priority:")
         iPriLbl:SetPoint("TOPLEFT",p,"TOPLEFT",0,-py); py=py+14
         local iSelPri=1; local ipriBtns={}
-        local function SetIPriBtn(n) iSelPri=n; for i,b in ipairs(ipriBtns) do if i==n then BD(b,0.24,0.49,0.73,1,0.24,0.49,0.73,1) else BD(b,0.09,0.09,0.09,1,0.22,0.22,0.22,1) end end end
+        local function SetIPriBtn(n) iSelPri=n; for i,b in ipairs(ipriBtns) do if i==n then BD(b,0.40,0.32,0.01,1,0.55,0.44,0.0,1) else BD(b,0.09,0.09,0.09,1,0.22,0.22,0.22,1) end end end
         for i=1,4 do
             local b=CreateFrame("Button",nil,p,"BackdropTemplate"); b:SetSize(30,20); b:SetPoint("TOPLEFT",p,"TOPLEFT",(i-1)*34,-py)
             BD(b,i==1 and 0.24 or 0.09,i==1 and 0.49 or 0.09,i==1 and 0.73 or 0.09,1,i==1 and 0.24 or 0.22,i==1 and 0.49 or 0.22,i==1 and 0.73 or 0.22,1)
@@ -1500,7 +1583,7 @@ local function BuildPageAllIcons(page)
         CT._selectGroupRow=function(hrow,grpSlot,grpLabel)
             -- Clear previous highlight
             if selectedHrow and selectedHrow~=hrow then
-                local tc=TYPE_COLORS["group"] or {0.24,0.49,0.73}
+                local tc=TYPE_COLORS["group"] or {1.0,0.75,0.0}
                 BD(selectedHrow,0.10,0.10,0.10,1,tc[1]*0.5,tc[2]*0.5,tc[3]*0.5)
             end
             selectedHrow=hrow; selGrpSlot=grpSlot
@@ -1524,11 +1607,11 @@ local function BuildPageAllIcons(page)
 
         -- Add All Class Defensives
         local defBtn=CreateFrame("Button",nil,p,"BackdropTemplate"); defBtn:SetSize(EW,28); defBtn:SetPoint("TOPLEFT",p,"TOPLEFT",0,-py)
-        BD(defBtn,0.07,0.12,0.20,1,0.24,0.49,0.73,1)
-        local dbl=defBtn:CreateFontString(nil,"OVERLAY"); dbl:SetFont("Fonts\\ARIALN.TTF",GFS(),""); dbl:SetTextColor(0.5,0.8,1.0,1)
+        BD(defBtn,0.12,0.10,0.01,1,0.55,0.44,0.0,1)
+        local dbl=defBtn:CreateFontString(nil,"OVERLAY"); dbl:SetFont("Fonts\\ARIALN.TTF",GFS(),""); dbl:SetTextColor(1.0,0.82,0.0,1)
         dbl:SetText("+ Add All Class Defensives  (current spec)"); dbl:SetAllPoints(); dbl:SetJustifyH("CENTER")
-        defBtn:SetScript("OnEnter",function() defBtn:SetBackdropColor(0.12,0.20,0.35,1); defBtn:SetBackdropBorderColor(0.35,0.65,1.0,1); dbl:SetTextColor(1,1,1,1) end)
-        defBtn:SetScript("OnLeave",function() BD(defBtn,0.07,0.12,0.20,1,0.24,0.49,0.73,1); dbl:SetTextColor(0.5,0.8,1.0,1) end)
+        defBtn:SetScript("OnEnter",function() defBtn:SetBackdropColor(0.20,0.16,0.02,1); defBtn:SetBackdropBorderColor(1.0,0.82,0.0,1); dbl:SetTextColor(1,1,1,1) end)
+        defBtn:SetScript("OnLeave",function() BD(defBtn,0.12,0.10,0.01,1,0.55,0.44,0.0,1); dbl:SetTextColor(1.0,0.82,0.0,1) end)
         defBtn:SetScript("OnClick",function()
             if type(WinDB().Slots)~="table" then WinDB().Slots={} end
             local _,playerClass=UnitClass("player")
@@ -1568,7 +1651,7 @@ local function BuildPageAllIcons(page)
                 if added>0 then msg=msg.."|cFF44FF44Added "..added.."|r " end
                 if moved>0 then msg=msg.."|cFFFFD700Moved "..moved.."|r" end
                 ShowStat(msg.." defensive(s)")
-                FlashBtn(defBtn,dbl,"Added!","+ Add Defensives for My Spec",0.07,0.12,0.20,0.24,0.49,0.73)
+                FlashBtn(defBtn,dbl,"Added!","+ Add Defensives for My Spec",0.12,0.10,0.01,0.55,0.44,0.0)
                 CT:RefreshLayout(); if rebuildUnifiedList then rebuildUnifiedList() end
             else ShowStat("|cFFFF9900All defensives already in this window|r") end
         end)
@@ -1624,7 +1707,7 @@ local function BuildPageAllIcons(page)
         local spellType="racial"
         local typeRacialBtn=CreateFrame("Button",nil,p,"BackdropTemplate"); typeRacialBtn:SetSize(90,22); typeRacialBtn:SetPoint("TOPLEFT",p,"TOPLEFT",0,-py)
         local function RefST()
-            BD(typeRacialBtn,0.18,0.37,0.58,1,0.24,0.49,0.73,1)
+            BD(typeRacialBtn,0.14,0.11,0.01,1,0.55,0.44,0.0,1)
         end
         local rtl=typeRacialBtn:CreateFontString(nil,"OVERLAY"); rtl:SetFont("Fonts\\ARIALN.TTF",10,""); rtl:SetTextColor(1,1,1,1); rtl:SetText("Racial"); rtl:SetAllPoints(); rtl:SetJustifyH("CENTER")
         typeRacialBtn:SetScript("OnClick",function() spellType="racial"; RefST() end)
@@ -1698,18 +1781,18 @@ local function BuildPageAllIcons(page)
         caIdBox:SetScript("OnEscapePressed",function(sv) sv:ClearFocus() end); py=py+26
 
         local caAddBtn=CreateFrame("Button",nil,p,"BackdropTemplate"); caAddBtn:SetSize(EW,24); caAddBtn:SetPoint("TOPLEFT",p,"TOPLEFT",0,-py)
-        BD(caAddBtn,0.08,0.14,0.22,1,0.24,0.49,0.73)
-        local cal=caAddBtn:CreateFontString(nil,"OVERLAY"); cal:SetFont("Fonts\\ARIALN.TTF",GFS(),""); cal:SetTextColor(0.5,0.8,1.0,1)
+        BD(caAddBtn,0.12,0.10,0.01,1,0.55,0.44,0.0)
+        local cal=caAddBtn:CreateFontString(nil,"OVERLAY"); cal:SetFont("Fonts\\ARIALN.TTF",GFS(),""); cal:SetTextColor(1.0,0.82,0.0,1)
         cal:SetText("+ Add Class Ability"); cal:SetAllPoints(); cal:SetJustifyH("CENTER")
         caAddBtn:SetScript("OnEnter",function() caAddBtn:SetBackdropColor(0.12,0.22,0.38,1); caAddBtn:SetBackdropBorderColor(0.35,0.65,1.0,1); cal:SetTextColor(1,1,1,1) end)
-        caAddBtn:SetScript("OnLeave",function() BD(caAddBtn,0.08,0.14,0.22,1,0.24,0.49,0.73); cal:SetTextColor(0.5,0.8,1.0,1) end)
+        caAddBtn:SetScript("OnLeave",function() BD(caAddBtn,0.12,0.10,0.01,1,0.55,0.44,0.0); cal:SetTextColor(1.0,0.82,0.0,1) end)
 
         local function DoAddCA()
             local rawId=caIdBox:GetText():match("^%s*(%d+)%s*$"); local id=tonumber(rawId)
             if not id or id<=0 then ShowStat("|cFFFF4444Invalid spell ID|r"); return end
             if type(WinDB().Slots)~="table" then WinDB().Slots={} end
             if SlotExistsInWin(WinDB(),"spell","spellId",id) then
-                FlashBtnErr(caAddBtn,cal,"Already added","+ Add Class Ability",0.08,0.14,0.22,0.24,0.49,0.73); return
+                FlashBtnErr(caAddBtn,cal,"Already added","+ Add Class Ability",0.12,0.10,0.01,0.55,0.44,0.0); return
             end
             local existWi=SlotExistsInAnyWindow("spell","spellId",id)
             if existWi then
@@ -1717,7 +1800,7 @@ local function BuildPageAllIcons(page)
                 for i,s in ipairs(srcWin.Slots or {}) do
                     if s.type=="spell" and s.spellId==id then
                         table.remove(srcWin.Slots,i); table.insert(WinDB().Slots,s)
-                        FlashBtn(caAddBtn,cal,"Moved!","+ Add Class Ability",0.08,0.14,0.22,0.24,0.49,0.73)
+                        FlashBtn(caAddBtn,cal,"Moved!","+ Add Class Ability",0.12,0.10,0.01,0.55,0.44,0.0)
                         caIdBox:SetText(""); CT:RefreshLayout()
                         if rebuildUnifiedList then rebuildUnifiedList() end; return
                     end
@@ -1726,7 +1809,7 @@ local function BuildPageAllIcons(page)
             local lbl=(C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id)) or ("Spell "..id)
             local _,class=UnitClass("player")
             table.insert(WinDB().Slots,{type="spell",spellType="classability",enabled=true,label=lbl,spellId=id,class=class})
-            caIdBox:SetText(""); FlashBtn(caAddBtn,cal,"Added!","+ Add Class Ability",0.08,0.14,0.22,0.24,0.49,0.73)
+            caIdBox:SetText(""); FlashBtn(caAddBtn,cal,"Added!","+ Add Class Ability",0.12,0.10,0.01,0.55,0.44,0.0)
             ShowStat("|cFF44FF44Added class ability: "..lbl.."|r")
             CT:RefreshLayout()
             if rebuildUnifiedList then rebuildUnifiedList() end
@@ -1745,7 +1828,7 @@ local function BuildPageAllIcons(page)
 
     local SECTION_META={
         racials=       {key="racials",       label="Racials",                     color={0.25,0.75,0.25}},
-        defensives=    {key="defensives",    label="Defensives  (class-specific)", color={0.24,0.49,0.73}},
+        defensives=    {key="defensives",    label="Defensives  (class-specific)", color={1.0,0.75,0.0}},
         consumables=   {key="consumables",   label="Consumables",                  color={0.85,0.45,0.10}},
         gear=          {key="gear",          label="Gear On-Use",                  color={0.10,0.65,0.65}},
         classabilities={key="classabilities",label="Class Abilities",              color={0.55,0.85,1.00}},
@@ -2002,10 +2085,10 @@ local function BuildPageAllIcons(page)
             end
             if HasMultipleWindows() then
                 local mvB=CreateFrame("Button",nil,hrow,"BackdropTemplate"); mvB:SetSize(26,20); mvB:SetPoint("RIGHT",delB,"LEFT",-2,0)
-                BD(mvB,0.08,0.10,0.18,1,0.20,0.28,0.45)
-                local mvL=mvB:CreateFontString(nil,"OVERLAY"); mvL:SetFont("Fonts\\ARIALN.TTF",8,""); mvL:SetTextColor(0.6,0.8,1,1); mvL:SetText("->W"); mvL:SetAllPoints(); mvL:SetJustifyH("CENTER")
-                mvB:SetScript("OnEnter",function() mvB:SetBackdropColor(0.14,0.20,0.35,1) end)
-                mvB:SetScript("OnLeave",function() BD(mvB,0.08,0.10,0.18,1,0.20,0.28,0.45) end)
+                BD(mvB,0.10,0.08,0.01,1,0.40,0.32,0.0)
+                local mvL=mvB:CreateFontString(nil,"OVERLAY"); mvL:SetFont("Fonts\\ARIALN.TTF",8,""); mvL:SetTextColor(1.0,0.82,0.0,1); mvL:SetText("->W"); mvL:SetAllPoints(); mvL:SetJustifyH("CENTER")
+                mvB:SetScript("OnEnter",function() mvB:SetBackdropColor(0.18,0.14,0.01,1) end)
+                mvB:SetScript("OnLeave",function() BD(mvB,0.10,0.08,0.01,1,0.40,0.32,0.0) end)
                 local mvSlot=slot
                 mvB:SetScript("OnClick",function()
                     local d=ConsumableTrackerDB; if not d or not d.Windows then return end
@@ -2070,7 +2153,7 @@ local function BuildPageAllIcons(page)
                 renameBox:SetFont("Fonts\\ARIALN.TTF",GFS(),""); renameBox:SetTextColor(1,1,1,1)
                 renameBox:SetTextInsets(4,4,0,0); renameBox:SetText(slot.label~="" and slot.label or "Group")
                 BD(renameBox,0,0,0,0,0,0,0,0)  -- transparent by default
-                renameBox:SetScript("OnEditFocusGained",function() BD(renameBox,0.07,0.07,0.07,1,0.24,0.49,0.73,1) end)
+                renameBox:SetScript("OnEditFocusGained",function() BD(renameBox,0.07,0.07,0.07,1,0.55,0.44,0.0,1) end)
                 renameBox:SetScript("OnEditFocusLost",function()
                     BD(renameBox,0,0,0,0,0,0,0,0)
                     local newLbl=renameBox:GetText():match("^%s*(.-)%s*$") or ""
@@ -2167,7 +2250,7 @@ local function BuildPageAllIcons(page)
 
                     -- P# badge on left, full height
                     local pbadge=prow:CreateFontString(nil,"OVERLAY"); pbadge:SetFont("Fonts\\ARIALN.TTF",GFS(),"OUTLINE")
-                    pbadge:SetTextColor(0.24,0.49,0.73,1); pbadge:SetText("P"..pi)
+                    pbadge:SetTextColor(1.0,0.82,0.0,1); pbadge:SetText("P"..pi)
                     pbadge:SetPoint("LEFT",prow,"LEFT",5,0)
 
                     local pid=slot["p"..pi]
@@ -2500,25 +2583,61 @@ local function BuildPageBuffWindow(page)
         end
         return items
     end
+
+    -- "Anchor to:" (left) + "Screen anchor:" inline to the right
+    local UpdatePointDropVisibility  -- forward declare so the dropdown setV can call it
+    local _yBeforeBW = y
     y=WDropdown(page,"Anchor to:",GetOtherWinItems(),ML,y,270,
         function() return BWD().AnchorToFrame or "UIParent" end,
-        function(v) BWD().AnchorToFrame=v; Refresh() end)
+        function(v)
+            BWD().AnchorToFrame = v
+            if UpdatePointDropVisibility then UpdatePointDropVisibility() end; Refresh()
+        end)
+    -- SAP label + bar inline on same rows as "Anchor to:" label/bar
+    local sapLblB=page:CreateFontString(nil,"OVERLAY")
+    sapLblB:SetFont("Fonts\\ARIALN.TTF",GFS(),""); sapLblB:SetTextColor(0.9,0.9,0.9,1)
+    sapLblB:SetText("Screen anchor:"); sapLblB:SetPoint("TOPLEFT",page,"TOPLEFT",ML+292,-_yBeforeBW)
+    local _,sapBarB,sapCurB=WDropdown(page,"",ANCHORS,ML+292,_yBeforeBW+16,196,
+        function() return BWD().ScreenAnchorPoint or "CENTER" end,
+        function(v)
+            BWD().ScreenAnchorPoint=v
+            Refresh()
+        end)
+    -- Buff anchor / Target point labels + dropdowns (greyed when UIParent)
     local apLbl=page:CreateFontString(nil,"OVERLAY"); apLbl:SetFont("Fonts\\ARIALN.TTF",GFS(),""); apLbl:SetTextColor(0.9,0.9,0.9,1)
-    apLbl:SetText("Window point:"); apLbl:SetPoint("TOPLEFT",page,"TOPLEFT",ML,-y)
+    apLbl:SetText("Buff anchor:"); apLbl:SetPoint("TOPLEFT",page,"TOPLEFT",ML,-(y+16))
     local rpLbl=page:CreateFontString(nil,"OVERLAY"); rpLbl:SetFont("Fonts\\ARIALN.TTF",GFS(),""); rpLbl:SetTextColor(0.9,0.9,0.9,1)
-    rpLbl:SetText("Screen point:"); rpLbl:SetPoint("TOPLEFT",page,"TOPLEFT",ML+260,-y); y=y+16
-    WDropdown(page,"",ANCHORS,ML,y,240,
-        function() return BWD().AnchorPoint or "TOP" end,
+    rpLbl:SetText("Target point:"); rpLbl:SetPoint("TOPLEFT",page,"TOPLEFT",ML+260,-(y+16))
+    local _,apBar,apCurBW=WDropdown(page,"",ANCHORS,ML,y+32,240,
+        function() return BWD().AnchorPoint or "CENTER" end,
         function(v) BWD().AnchorPoint=v; Refresh() end)
-    WDropdown(page,"",ANCHORS,ML+260,y,240,
-        function() return BWD().AnchorToPoint or "TOP" end,
+    local _,rpBar,rpCurBW=WDropdown(page,"",ANCHORS,ML+260,y+32,240,
+        function() return BWD().AnchorToPoint or "CENTER" end,
         function(v) BWD().AnchorToPoint=v; Refresh() end)
-    y=y+28
+    y=y+16+28+16  -- label + bar + spacing
+
+    UpdatePointDropVisibility = function()
+        local isScreen=(BWD().AnchorToFrame or "UIParent")=="UIParent"
+        local function AL(v) for _,it in ipairs(ANCHORS) do if it.value==v then return it.label end end; return tostring(v or "") end
+        -- Screen anchor: active only when UIParent
+        local sapA=isScreen and 1 or 0.3
+        sapLblB:SetAlpha(sapA)
+        if sapBarB then sapBarB:SetAlpha(sapA); sapBarB:EnableMouse(isScreen) end
+        if sapCurB then sapCurB:SetText(AL(BWD().ScreenAnchorPoint or "CENTER")) end
+        -- Buff anchor / Target: active only when NOT UIParent
+        local frmA=isScreen and 0.3 or 1
+        apLbl:SetAlpha(frmA); rpLbl:SetAlpha(frmA)
+        if apBar then apBar:SetAlpha(frmA); apBar:EnableMouse(not isScreen) end
+        if rpBar then rpBar:SetAlpha(frmA); rpBar:EnableMouse(not isScreen) end
+        if apCurBW then apCurBW:SetText(AL(BWD().AnchorPoint or "CENTER")) end
+        if rpCurBW then rpCurBW:SetText(AL(BWD().AnchorToPoint or "CENTER")) end
+    end
+    UpdatePointDropVisibility()
     y=WSlider(page,"X offset",-1500,1500,ML,y,
         function() return BWD().X or 0 end,
         function(v) BWD().X=v; Refresh() end, EW)
     y=WSlider(page,"Y offset",-1000,1000,ML,y,
-        function() return BWD().Y or -100 end,
+        function() return BWD().Y or 0 end,
         function(v) BWD().Y=v; Refresh() end, EW)
 
     local resetBtn=CreateFrame("Button",nil,page,"BackdropTemplate"); resetBtn:SetSize(EW,24); resetBtn:SetPoint("TOPLEFT",page,"TOPLEFT",ML,-y)
@@ -2528,8 +2647,8 @@ local function BuildPageBuffWindow(page)
     resetBtn:SetScript("OnEnter",function() resetBtn:SetBackdropColor(0.22,0.10,0.10,1); rl:SetTextColor(1,1,1,1) end)
     resetBtn:SetScript("OnLeave",function() BD(resetBtn,0.12,0.08,0.08,1,0.35,0.18,0.18); rl:SetTextColor(1,0.6,0.6,1) end)
     resetBtn:SetScript("OnClick",function()
-        local bw=BWD(); bw.AnchorPoint="TOP"; bw.AnchorToPoint="TOP"
-        bw.AnchorToFrame="UIParent"; bw.X=0; bw.Y=-100; Refresh()
+        local bw=BWD(); bw.AnchorPoint="CENTER"; bw.AnchorToPoint="CENTER"
+        bw.AnchorToFrame="UIParent"; bw.X=0; bw.Y=0; Refresh()
     end); y=y+32
 
     -- Active tracked icons list
@@ -2579,6 +2698,7 @@ local function BuildPageBuffWindow(page)
         RebuildTrackedList()
         if RebuildItemList then RebuildItemList() end
         if CT._rebuildMidnightList then CT._rebuildMidnightList() end
+        if CT._rebuildRacialList then CT._rebuildRacialList() end
     end
     RebuildTrackedList()
     y=y+listHolder:GetHeight()+8
@@ -2842,6 +2962,106 @@ local function BuildPageBuffWindow(page)
     CT._rebuildMidnightList=RebuildMidnightList
     RebuildMidnightList()
     y=y+midHolder:GetHeight()+8
+
+    -- ============================================================
+    -- Racial Buff Icons
+    -- ============================================================
+    y=WHeader(page,"Racial Buff Icons",y)
+    y=WTip(page,"Auto-shows a buff icon when you use a racial ability that has a buff duration. Fires from UNIT_SPELLCAST_SUCCEEDED — works in all content.",ML,y)
+    y=WCheck(page,"Enable racial buff tracking",ML,y,
+        function() return BWD().RacialBuffEnabled or false end,
+        function(v) BWD().RacialBuffEnabled=v; Refresh() end)
+
+    local racialHolder=CreateFrame("Frame",nil,page)
+    racialHolder:SetPoint("TOPLEFT",page,"TOPLEFT",ML,-y); racialHolder:SetWidth(EW)
+
+    local function RebuildRacialList()
+        for _,c in ipairs({racialHolder:GetChildren()}) do c:Hide(); c:SetParent(nil) end
+        for _,r in ipairs({racialHolder:GetRegions()}) do r:Hide() end
+        local RAC=CT.RACIAL_BUFF_DURATIONS
+        if not RAC then racialHolder:SetHeight(22); return end
+        local bwd=BWD()
+        if not bwd.RacialBuffTrack then bwd.RacialBuffTrack={} end
+        local trackEnabled=bwd.RacialBuffTrack
+        local ry=0; local RRH=28; local found=false
+
+        -- Build list of known racials for this player
+        local known={}
+        for primaryId, info in pairs(RAC) do
+            if info.duration and info.duration>0 then
+                local isKnown=IsPlayerSpell and IsPlayerSpell(primaryId)
+                if not isKnown then
+                    for _,alt in ipairs(info.alts or {}) do
+                        if IsPlayerSpell and IsPlayerSpell(alt) then isKnown=true; break end
+                    end
+                end
+                if isKnown then
+                    table.insert(known,{id=primaryId,info=info})
+                end
+            end
+        end
+        table.sort(known,function(a,b) return (a.info.label or "") < (b.info.label or "") end)
+
+        for _,entry in ipairs(known) do
+            local primaryId=entry.id; local info=entry.info
+            found=true
+            local capId=primaryId
+            local isEnabled=trackEnabled[primaryId]~=false
+            local row=CreateFrame("Frame",nil,racialHolder,"BackdropTemplate")
+            row:SetSize(EW,RRH-2); row:SetPoint("TOPLEFT",racialHolder,"TOPLEFT",0,-ry)
+            BD(row,0.08,0.10,0.08,1,0.18,0.28,0.18)
+
+            -- Spell icon
+            local icoF=CreateFrame("Frame",nil,row); icoF:SetSize(RRH-4,RRH-4); icoF:SetPoint("LEFT",row,"LEFT",3,0)
+            local icoTex=icoF:CreateTexture(nil,"ARTWORK"); icoTex:SetAllPoints(icoF); icoTex:SetTexCoord(0.08,0.92,0.08,0.92)
+            local stex=C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(primaryId)
+            if stex then icoTex:SetTexture(stex) else icoTex:SetColorTexture(0.3,0.5,0.3,1) end
+            icoF:EnableMouse(true)
+            icoF:SetScript("OnEnter",function(self)
+                GameTooltip:SetOwner(self,"ANCHOR_RIGHT"); GameTooltip:SetSpellByID(capId); GameTooltip:Show()
+            end)
+            icoF:SetScript("OnLeave",function() GameTooltip:Hide() end)
+
+            -- Label + duration
+            local durStr="  |cFF558855"..info.duration.."s buff|r"
+            local lbl=row:CreateFontString(nil,"OVERLAY"); lbl:SetFont("Fonts\\ARIALN.TTF",GFS(),"")
+            lbl:SetTextColor(isEnabled and 0.9 or 0.4,isEnabled and 0.9 or 0.4,isEnabled and 0.9 or 0.4,1)
+            lbl:SetText((info.label or "Racial")..durStr)
+            lbl:SetPoint("LEFT",icoF,"RIGHT",5,0); lbl:SetPoint("RIGHT",row,"RIGHT",-68,0); lbl:SetJustifyH("LEFT")
+
+            -- Toggle
+            local togBtn=CreateFrame("Button",nil,row,"BackdropTemplate"); togBtn:SetSize(58,20); togBtn:SetPoint("RIGHT",row,"RIGHT",-4,0)
+            BD(togBtn,isEnabled and 0.07 or 0.09,isEnabled and 0.14 or 0.09,isEnabled and 0.22 or 0.09,1,
+                       isEnabled and 0.24 or 0.22,isEnabled and 0.49 or 0.22,isEnabled and 0.73 or 0.22,1)
+            local togL=togBtn:CreateFontString(nil,"OVERLAY"); togL:SetFont("Fonts\\ARIALN.TTF",9,"")
+            togL:SetText(isEnabled and "Tracking" or "Disabled"); togL:SetAllPoints(); togL:SetJustifyH("CENTER")
+            togL:SetTextColor(isEnabled and 0.5 or 0.5,isEnabled and 1.0 or 0.5,isEnabled and 1.0 or 0.5,1)
+            local capIdT=primaryId
+            togBtn:SetScript("OnClick",function()
+                local bwd2=BWD(); if not bwd2.RacialBuffTrack then bwd2.RacialBuffTrack={} end
+                local cur=bwd2.RacialBuffTrack[capIdT]~=false
+                bwd2.RacialBuffTrack[capIdT]=not cur
+                local now2=bwd2.RacialBuffTrack[capIdT]
+                BD(togBtn,now2 and 0.07 or 0.09,now2 and 0.14 or 0.09,now2 and 0.22 or 0.09,1,
+                           now2 and 0.24 or 0.22,now2 and 0.49 or 0.22,now2 and 0.73 or 0.22,1)
+                togL:SetText(now2 and "Tracking" or "Disabled")
+                togL:SetTextColor(now2 and 0.5 or 0.5,now2 and 1.0 or 0.5,now2 and 1.0 or 0.5,1)
+                lbl:SetTextColor(now2 and 0.9 or 0.4,now2 and 0.9 or 0.4,now2 and 0.9 or 0.4,1)
+            end)
+            ry=ry+RRH
+        end
+
+        if not found then
+            local hint=racialHolder:CreateFontString(nil,"OVERLAY"); hint:SetFont("Fonts\\ARIALN.TTF",10,""); hint:SetTextColor(0.4,0.4,0.4,1)
+            hint:SetText("No tracked racial abilities found for your race/class."); hint:SetPoint("TOPLEFT",racialHolder,"TOPLEFT",0,0); hint:SetWidth(EW); hint:SetJustifyH("CENTER")
+            racialHolder:SetHeight(22)
+        else
+            racialHolder:SetHeight(ry)
+        end
+    end
+    CT._rebuildRacialList=RebuildRacialList
+    RebuildRacialList()
+    y=y+racialHolder:GetHeight()+8
 end
 
 -- ============================================================
@@ -2911,62 +3131,94 @@ local function BuildPageInfo(page)
     local function Gap() y=y+14 end
 
     InfoHeader("Welcome to Fabs Resource Tracker")
-    InfoLine("This addon tracks cooldowns and resources as movable icon windows on screen.")
-    InfoLine("You can have multiple windows, each with their own icons, size, position and appearance.")
-    InfoLine("To get started: go to All Icons and add your consumables, racials or defensives,\nthen use Position to place the window on screen.")
+    InfoLine("Track cooldowns, consumables, racials, defensives and gear on-use across one or more movable icon windows.")
+    InfoLine("All content types are supported: outdoor, dungeons, mythic+, raids, LFR, PvP battlegrounds, arenas and delves.")
+    InfoLine("To get started: open All Icons, add what you want to track, then go to Position to place the window.")
     Gap()
 
     InfoHeader("Icon & Border")
     InfoLine("Controls the look of icons in the selected window.")
-    InfoNote("Zoom — 0 shows the full raw icon. Higher values crop toward the center, removing the default texture border.")
-    InfoNote("Border styles — No border, Solid colour (sharp pixel lines), or WoW built-in edges like Tooltip, Dialog or Glow.")
-    InfoNote("Hide GCD — suppresses the short 1.5s global cooldown flash after each cast.")
-    InfoNote("Desaturate on Cooldown — greys out the icon while it is on cooldown.")
+    InfoNote("Width / Height — icons can be different sizes. Decimal values supported (e.g. 44.5).")
+    InfoNote("Zoom — 0 shows the full raw icon. Higher values crop the edges inward.")
+    InfoNote("Border styles — No border, Solid colour (pixel-perfect lines), or WoW textures: Tooltip, Dialog, Glow, Achievement, Party.")
+    InfoNote("Border thickness — pixel-accurate scaling at any resolution.")
+    InfoNote("Hide GCD — suppresses the 1.5s global cooldown flash so only real cooldowns show the swipe.")
+    InfoNote("Desaturate on Cooldown — greys out the icon texture while the ability is unavailable.")
+    InfoNote("Show Tooltip — hover any tracked icon in-game to see its tooltip.")
     Gap()
 
     InfoHeader("Position")
-    InfoLine("Controls where the selected window sits on screen.")
-    InfoNote("Unlock the window first to drag it freely, then lock it once placed.")
-    InfoNote("Anchor to UIParent (screen) or to another tracker window so they move together.")
-    InfoNote("Use the X and Y offset sliders to fine-tune position after choosing an anchor point.")
+    InfoLine("Controls where each window sits on screen. Every window has its own independent position.")
+    InfoNote("Anchor to frame preset — quickly attach to Screen, PlayerFrame, TargetFrame, FocusFrame, Minimap, ElvUI frames, or any custom frame name from /fstack.")
+    InfoNote("Screen anchor point — when anchored to UIParent, choose which corner or edge of the screen to measure from: CENTER, TOP, BOTTOMLEFT, etc. The offset sliders then work relative to that point.")
+    InfoNote("Icon anchor / Target point — when anchored to a unit frame, set which point of your icon attaches to which point of the target frame.")
+    InfoNote("Anchor to Another Window — snap this window to a sibling tracker window. Set My point and Their point then click Apply.")
+    InfoNote("Lock position — disables drag so the window cannot be accidentally moved.")
+    InfoNote("Drag the first icon in a window to reposition it freely when unlocked.")
     Gap()
 
     InfoHeader("Text & Font")
-    InfoLine("Controls text displayed on the icons.")
-    InfoNote("Cooldown countdown — the number shown while an ability is on cooldown. Configurable font, size and position.")
-    InfoNote("Stack count — shows how many of a consumable you have in your bags.")
-    InfoNote("Quality Gem — a coloured dot or star showing Gold, Silver or Fleeting potion quality.")
+    InfoLine("Controls all text rendered on top of the icons.")
+    InfoNote("Cooldown countdown — large number shown while an ability is on cooldown. Set font, size, style, position and shadow.")
+    InfoNote("Stack count — shows how many of a consumable you have in bags. Turns red when count is 0.")
+    InfoNote("Quality Gem — small coloured indicator in the corner of consumable icons: Gold, Silver, or F (Fleeting). Set per item in All Icons.")
+    InfoNote("Gem shape — circle (coloured dot) or star.")
+    InfoNote("Settings UI font size — scales the font inside this settings window without a reload.")
     Gap()
 
     InfoHeader("All Icons")
-    InfoLine("This is where you add everything you want to track.")
-    InfoNote("Gear On-Use — tracks equipped item slots (Trinket 1, Trinket 2, etc.). Updates automatically when you swap gear.")
-    InfoNote("Consumables — potion groups with up to 4 fallback items. The addon shows the best one you have in your bags.")
-    InfoNote("Defensives / Racials — add spells by ID. Racials and class defensives have presets listed for easy adding.")
-    InfoNote("Class Abilities — add any spell by ID to track its cooldown.")
-    InfoNote("Buff Timer — every icon has a green timer row. Enter seconds to show a buff icon in the Buff Window when you use it.")
+    InfoLine("The central place to add, reorder and manage everything tracked across all windows.")
+    InfoNote("Gear On-Use — add any equipment slot (Head, Trinket 1, Main-Hand, etc.). The icon updates automatically when you swap gear and only shows if the item has an on-use effect.")
+    InfoNote("Consumables — groups of up to 4 fallback items by priority. The addon shows the highest-priority item you currently have in bags. Assign Gold / Silver / Fleeting gem colours per item.")
+    InfoNote("Defensives / Racials — presets for all class defensives by spec, and all racial abilities. Only spells your character actually knows will appear as icons.")
+    InfoNote("Class Abilities — add any spell by ID to track its cooldown. Works for any spell in your spellbook.")
+    InfoNote("Buff Timer — each icon has a green sub-row where you can enter a duration in seconds. When you use that ability, a buff icon appears in the Buff Window for that duration.")
+    InfoNote("Reorder — use the up/down arrows on each row to change icon order within its section.")
+    InfoNote("Move to Window — the ->W button moves an icon to a different tracker window instantly.")
+    InfoNote("Enable / Disable — toggle individual icons without removing them.")
+    InfoNote("Blacklist — hide specific item IDs from all gear slot tracking.")
     Gap()
 
     InfoHeader("Windows")
-    InfoLine("Create multiple independent icon windows.")
-    InfoNote("Each window has its own icons, appearance and position settings.")
-    InfoNote("The strip at the top of Appearance pages switches which window you are editing.")
-    InfoNote("You can anchor one window to another so they stay together when moved.")
+    InfoLine("Create and manage multiple independent icon windows, each with its own icons, appearance and position.")
+    InfoNote("New Window — copies the current window's appearance settings as a starting point.")
+    InfoNote("Select a window in the list to make it the active window for editing in Icon & Border, Position and Text & Font.")
+    InfoNote("Rename — double-click or use the Rename button on any window row.")
+    InfoNote("Delete — moves all icons from the deleted window back to Window 1 automatically.")
+    InfoNote("Lock / Unlock — shown per window so you can lock individual windows while leaving others draggable.")
     Gap()
 
     InfoHeader("Buff Window")
-    InfoLine("A floating window showing buff icons when custom timers fire.")
-    InfoNote("Unlock it to see the blue placeholder box. Drag it where you want, then lock it.")
-    InfoNote("Grow direction — choose whether new icons stack right, left, up or down.")
-    InfoNote("Tracked Item IDs — add trinket or on-use item IDs with a custom duration. A buff icon appears whenever you use that item, regardless of which slot it is in. Hover the item icon for its tooltip.")
+    InfoLine("A separate floating window that shows buff icons with countdown timers when abilities are used.")
+    InfoNote("Works across all content types including battlegrounds, arenas, dungeons, raids and outdoor. Icons clear automatically on zone entry and on death.")
+    InfoNote("Anchor — attach to UIParent (screen), or to any tracker window. When anchored to screen, set the Screen anchor point to choose which edge to measure from.")
+    InfoNote("Unlock the window to drag it. A placeholder box appears while unlocked. Lock it once positioned.")
+    InfoNote("Grow direction — which way new icons appear: Right, Left, Up or Down.")
+    InfoNote("Max icons per row — wrap icons into multiple rows.")
+    InfoNote("Tracked Item IDs — add item IDs with a custom duration. Any time you use that item, a buff icon appears for the specified number of seconds, regardless of which equipment slot it is in.")
+    InfoNote("Midnight S1 auto-track — automatically detects equipped Midnight Season 1 trinkets and tracks their on-use buff without any manual setup.")
+    InfoNote("PvP trinkets tracked automatically: Aspirant's Badge of Ferocity (255326) and Gladiator's Badge of Ferocity (255613).")
+    InfoNote("Sealed Chaos Urn (251787) — 2 min cooldown, 20 sec buff, tracked automatically.")
     InfoNote("Right-click any active buff icon in-game to dismiss it early.")
     Gap()
 
+    InfoHeader("Profiles")
+    InfoLine("Save, switch and share your window layouts using profiles.")
+    InfoNote("Create Profile — saves your current layout under a new name and switches to it.")
+    InfoNote("Switch — load a saved profile. Your current layout is saved before switching.")
+    InfoNote("Copy — duplicate the active profile without switching.")
+    InfoNote("Reset — wipe the active profile back to defaults (one empty window).")
+    InfoNote("Export — generates a shareable !FRT_ string you can paste to another player.")
+    InfoNote("Import — paste an !FRT_ string to load a profile from another player. Give it a name and it is saved as a new profile.")
+    InfoNote("Positions (X/Y offsets) are never saved in profiles — your window layout stays put when switching profiles.")
+    Gap()
+
     InfoHeader("Slash Commands")
-    InfoNote("/ct  —  open or close the settings window")
-    InfoNote("/ct minimap  —  restore the minimap button if hidden")
-    InfoNote("/ct buffwin  —  reset the Buff Window to the top-center of screen")
-    InfoNote("/ct debug  —  print cooldown debug info for all tracked spells")
+    InfoNote("/ct  or  /consumabletracker  —  open or close the settings window")
+    InfoNote("/ct minimap  —  restore the minimap button if it was hidden")
+    InfoNote("/ct debug  —  print cooldown debug info for all tracked spells to chat")
+    InfoNote("/ct buffdbg  —  debug info for the buff window and item cooldown state")
+    InfoNote("/ct posdbg  —  print current anchor positions for all windows")
 end
 
 -- ============================================================
@@ -2996,7 +3248,7 @@ function CT._ShowDropMenu(anchor, items)
         local lbl = btn:CreateFontString(nil,"OVERLAY"); lbl:SetFont("Fonts\\ARIALN.TTF",11,""); lbl:SetTextColor(0.9,0.9,0.9,1); lbl:SetPoint("LEFT",btn,"LEFT",8,0); lbl:SetText(item.label)
         local capFn = item.onClick
         btn:SetScript("OnClick",function() mf:Hide(); _openDropMenu=nil; if capFn then capFn() end end)
-        btn:SetScript("OnEnter",function() BD(btn,0.18,0.37,0.58,0.9,0.24,0.49,0.73,1); lbl:SetTextColor(1,1,1,1) end)
+        btn:SetScript("OnEnter",function() BD(btn,0.14,0.11,0.01,0.9,0.55,0.44,0.0,1); lbl:SetTextColor(1,1,1,1) end)
         btn:SetScript("OnLeave",function() BD(btn,0.08,0.08,0.08,0,0,0,0,0); lbl:SetTextColor(0.9,0.9,0.9,1) end)
         my = my + 28
     end
@@ -3042,7 +3294,7 @@ local function BuildPageWindows(page, onWindowsChanged)
             row:SetPoint("TOPLEFT", listF, "TOPLEFT", 0, -ry)
             row:SetPoint("TOPRIGHT", listF, "TOPRIGHT", 0, -ry)
             row:SetHeight(36)
-            BD(row, 0.08, 0.08, 0.08, 1, wi == _selectedWinIdx and 0.24 or 0.18, wi == _selectedWinIdx and 0.49 or 0.18, wi == _selectedWinIdx and 0.73 or 0.18, 1)
+            BD(row, 0.08, 0.08, 0.08, 1, wi == _selectedWinIdx and 0.55 or 0.18, wi == _selectedWinIdx and 0.44 or 0.18, wi == _selectedWinIdx and 0.00 or 0.18, 1)
 
             -- Window number badge
             local badge = row:CreateFontString(nil,"OVERLAY"); badge:SetFont("Fonts\\ARIALN.TTF",10,"OUTLINE")
@@ -3228,6 +3480,7 @@ local function BuildPageProfiles(page)
     activeLbl:SetTextColor(0.5, 1, 0.5, 1); activeLbl:SetAllPoints(); activeLbl:SetJustifyH("CENTER")
     local function RefreshActiveBanner()
         activeLbl:SetText("Active profile:  |cFFFFFFFF" .. (CT:GetActiveProfile()) .. "|r")
+        if CT._refreshProfileBadge then CT._refreshProfileBadge() end
     end
     RefreshActiveBanner(); y = y + 34
 
@@ -3400,12 +3653,12 @@ local function BuildPageProfiles(page)
 
     local exportBtn = CreateFrame("Button", nil, page, "BackdropTemplate")
     exportBtn:SetSize(EW, 24); exportBtn:SetPoint("TOPLEFT", page, "TOPLEFT", ML, -y)
-    BD(exportBtn, 0.08, 0.14, 0.22, 1, 0.24, 0.49, 0.73)
+    BD(exportBtn, 0.12, 0.10, 0.01, 1, 0.55, 0.44, 0.0)
     local exportLbl = exportBtn:CreateFontString(nil, "OVERLAY")
-    exportLbl:SetFont("Fonts\\ARIALN.TTF", GFS(), ""); exportLbl:SetTextColor(0.5, 0.8, 1, 1)
+    exportLbl:SetFont("Fonts\\ARIALN.TTF", GFS(), ""); exportLbl:SetTextColor(1.0, 0.82, 0.0, 1)
     exportLbl:SetText("Generate Export String"); exportLbl:SetAllPoints(); exportLbl:SetJustifyH("CENTER")
     exportBtn:SetScript("OnEnter", function() exportBtn:SetBackdropColor(0.12, 0.22, 0.38, 1); exportLbl:SetTextColor(1,1,1,1) end)
-    exportBtn:SetScript("OnLeave", function() BD(exportBtn, 0.08, 0.14, 0.22, 1, 0.24, 0.49, 0.73); exportLbl:SetTextColor(0.5, 0.8, 1, 1) end)
+    exportBtn:SetScript("OnLeave", function() BD(exportBtn, 0.12, 0.10, 0.01, 1, 0.55, 0.44, 0.0); exportLbl:SetTextColor(0.5, 0.8, 1, 1) end)
     exportBtn:SetScript("OnClick", function()
         local str = CT:ExportProfile()
         exportBox:SetText(str)
@@ -3452,12 +3705,12 @@ local function BuildPageProfiles(page)
 
     local importBtn = CreateFrame("Button", nil, page, "BackdropTemplate")
     importBtn:SetSize(EW, 24); importBtn:SetPoint("TOPLEFT", page, "TOPLEFT", ML, -y)
-    BD(importBtn, 0.08, 0.14, 0.22, 1, 0.24, 0.49, 0.73)
+    BD(importBtn, 0.12, 0.10, 0.01, 1, 0.55, 0.44, 0.0)
     local importBtnLbl = importBtn:CreateFontString(nil, "OVERLAY")
-    importBtnLbl:SetFont("Fonts\\ARIALN.TTF", GFS(), ""); importBtnLbl:SetTextColor(0.5, 0.8, 1, 1)
+    importBtnLbl:SetFont("Fonts\\ARIALN.TTF", GFS(), ""); importBtnLbl:SetTextColor(1.0, 0.82, 0.0, 1)
     importBtnLbl:SetText("Import Profile"); importBtnLbl:SetAllPoints(); importBtnLbl:SetJustifyH("CENTER")
-    importBtn:SetScript("OnEnter", function() importBtn:SetBackdropColor(0.12, 0.22, 0.38, 1); importBtnLbl:SetTextColor(1,1,1,1) end)
-    importBtn:SetScript("OnLeave", function() BD(importBtn, 0.08, 0.14, 0.22, 1, 0.24, 0.49, 0.73); importBtnLbl:SetTextColor(0.5, 0.8, 1, 1) end)
+    importBtn:SetScript("OnEnter", function() importBtn:SetBackdropColor(0.20, 0.16, 0.02, 1); importBtnLbl:SetTextColor(1,1,1,1) end)
+    importBtn:SetScript("OnLeave", function() BD(importBtn, 0.12, 0.10, 0.01, 1, 0.55, 0.44, 0.0); importBtnLbl:SetTextColor(0.5, 0.8, 1, 1) end)
     importBtn:SetScript("OnClick", function()
         local name = importNameBox:GetText():match("^%s*(.-)%s*$")
         local str  = importBox:GetText():match("^%s*(.-)%s*$")
@@ -3476,7 +3729,7 @@ local function BuildPageProfiles(page)
             BD(importBtn, 0.06, 0.28, 0.06, 1, 0.20, 0.80, 0.20); importBtnLbl:SetText("Imported!")
             C_Timer.After(1.5, function()
                 if importBtn and importBtn.GetObjectType then
-                    BD(importBtn, 0.08, 0.14, 0.22, 1, 0.24, 0.49, 0.73); importBtnLbl:SetText("Import Profile")
+                    BD(importBtn, 0.12, 0.10, 0.01, 1, 0.55, 0.44, 0.0); importBtnLbl:SetText("Import Profile")
                 end
             end)
             RebuildProfileList(); RefreshActiveBanner()
@@ -3502,10 +3755,22 @@ local function BuildGUI()
     BD(frame,0.05,0.05,0.05,0.94,0,0,0)
     local tb=CreateFrame("Frame",nil,frame,"BackdropTemplate")
     tb:SetPoint("TOPLEFT",frame,"TOPLEFT",1,-1); tb:SetPoint("TOPRIGHT",frame,"TOPRIGHT",-1,-1); tb:SetHeight(TITLE_H)
-    BD(tb,0.02,0.02,0.02,1,0,0,0); tb:EnableMouse(true)
+    tb:SetFrameStrata("FULLSCREEN_DIALOG"); tb:SetFrameLevel(100); BD(tb,0.02,0.02,0.02,1,0,0,0); tb:EnableMouse(true)
     tb:SetScript("OnMouseDown",function() frame:StartMoving() end); tb:SetScript("OnMouseUp",function() frame:StopMovingOrSizing() end)
-    local tfs=tb:CreateFontString(nil,"OVERLAY","GameFontNormalLarge"); tfs:SetText("|cFF"..ClassHex().."Fabs Resource Tracker|r Settings"); tfs:SetPoint("LEFT",tb,"LEFT",14,0)
+    local tfs=tb:CreateFontString(nil,"OVERLAY","GameFontNormalLarge"); tfs:SetText("|cFF"..ClassHex().."Fabs Resource Tracker|r"); tfs:SetPoint("LEFT",tb,"LEFT",14,0)
     local xBtn=CreateFrame("Button",nil,tb,"UIPanelCloseButton"); xBtn:SetPoint("RIGHT",tb,"RIGHT",-2,0); xBtn:SetSize(28,28); xBtn:SetScript("OnClick",function() frame:Hide() end)
+
+    -- Profile badge: small text anchored right of title, left of search
+    local profileLbl=tb:CreateFontString(nil,"OVERLAY")
+    profileLbl:SetFont("Fonts\\ARIALN.TTF",10,"")
+    profileLbl:SetTextColor(0.45,0.45,0.45,1)
+    profileLbl:SetPoint("LEFT",tfs,"RIGHT",14,0)
+    local function RefreshProfileBadge()
+        local name = CT.GetActiveProfile and CT:GetActiveProfile() or "Default"
+        profileLbl:SetText("Profile: |cFFFFD200"..name.."|r")
+    end
+    RefreshProfileBadge()
+    CT._refreshProfileBadge = RefreshProfileBadge
 
     -- Search box in title bar
     local searchBox=CreateFrame("EditBox",nil,tb,"InputBoxTemplate")
@@ -3558,17 +3823,17 @@ local function BuildGUI()
     end)
     RefreshWinStripLabel()
 
-    local side=CreateFrame("Frame",nil,frame,"BackdropTemplate"); side:SetPoint("TOPLEFT",frame,"TOPLEFT",1,-TITLE_H); side:SetPoint("BOTTOMLEFT",frame,"BOTTOMLEFT",1,1); side:SetWidth(SIDE_W)
+    local side=CreateFrame("Frame",nil,frame,"BackdropTemplate"); side:SetPoint("TOPLEFT",frame,"TOPLEFT",1,-TITLE_H); side:SetPoint("BOTTOMLEFT",frame,"BOTTOMLEFT",1,29); side:SetWidth(SIDE_W); side:SetFrameStrata("FULLSCREEN_DIALOG"); side:SetFrameLevel(99)
     BD(side,0.04,0.04,0.04,1,0.12,0.12,0.12)
-    local sep=frame:CreateTexture(nil,"ARTWORK"); sep:SetColorTexture(0.15,0.15,0.15,1); sep:SetWidth(1)
-    sep:SetPoint("TOPLEFT",frame,"TOPLEFT",SIDE_W+1,-TITLE_H); sep:SetPoint("BOTTOMLEFT",frame,"BOTTOMLEFT",SIDE_W+1,1)
+    local sep=frame:CreateTexture(nil,"ARTWORK"); sep:SetColorTexture(0.08,0.08,0.08,1); sep:SetWidth(1)
+    sep:SetPoint("TOPLEFT",frame,"TOPLEFT",SIDE_W+1,-TITLE_H); sep:SetPoint("BOTTOMLEFT",frame,"BOTTOMLEFT",SIDE_W+1,29)
     -- Content area offset by winStrip height for pages 1-3
-    local contF=CreateFrame("Frame",nil,frame); contF:SetPoint("TOPLEFT",frame,"TOPLEFT",SIDE_W+2,-TITLE_H-28); contF:SetPoint("BOTTOMRIGHT",frame,"BOTTOMRIGHT",-1,1)
+    local contF=CreateFrame("Frame",nil,frame); contF:SetPoint("TOPLEFT",frame,"TOPLEFT",SIDE_W+2,-TITLE_H-28); contF:SetPoint("BOTTOMRIGHT",frame,"BOTTOMRIGHT",-1,29)
     local scTrack=CreateFrame("Frame",nil,contF,"BackdropTemplate"); scTrack:SetWidth(SCRL_W); scTrack:SetPoint("TOPRIGHT",contF,"TOPRIGHT",0,0); scTrack:SetPoint("BOTTOMRIGHT",contF,"BOTTOMRIGHT",0,0); BD(scTrack,0.06,0.06,0.06,1,0.12,0.12,0.12)
     local clip=CreateFrame("Frame",nil,contF); clip:SetClipsChildren(true); clip:SetPoint("TOPLEFT",contF,"TOPLEFT",0,0); clip:SetPoint("BOTTOMLEFT",contF,"BOTTOMLEFT",0,0); clip:SetWidth(PAGE_W); clip:EnableMouseWheel(true)
     local scBar=CreateFrame("Slider",nil,contF); scBar:SetWidth(SCRL_W); scBar:SetOrientation("VERTICAL"); scBar:SetPoint("TOPRIGHT",contF,"TOPRIGHT",0,0); scBar:SetPoint("BOTTOMRIGHT",contF,"BOTTOMRIGHT",0,0)
     scBar:SetMinMaxValues(0,0); scBar:SetValueStep(1); scBar:SetValue(0); scBar:SetThumbTexture("Interface\\Buttons\\WHITE8X8")
-    local scTh=scBar:GetThumbTexture(); scTh:SetSize(7,48); scTh:SetColorTexture(0.24,0.49,0.73,0.85)
+    local scTh=scBar:GetThumbTexture(); scTh:SetSize(7,48); do local cr,cg,cb=ClassRGB(); scTh:SetColorTexture(cr,cg,cb,0.85) end
     local pH=CreateFrame("Frame",nil,clip); pH:SetWidth(PAGE_W); pH:SetHeight(2000); pH:SetPoint("TOPLEFT"); pH:EnableMouseWheel(true)
     local scrollPos=0
     local function ScrollTo(v) local _,mx=scBar:GetMinMaxValues(); v=math.max(0,math.min(mx or 0,v)); scrollPos=v; scBar:SetValue(v); pH:SetPoint("TOPLEFT",clip,"TOPLEFT",0,v) end
@@ -3594,10 +3859,11 @@ local function BuildGUI()
     pages[7]=MkPage(); BuildPageBuffWindow(pages[7])
     pages[8]=MkPage(); BuildPageInfo(pages[8])
     pages[9]=MkPage(); BuildPageProfiles(pages[9])
-    local pageH={1350,1600,1400,1800,300,600,2000,2800,1200}
+    local pageH={1350,1600,1400,1800,300,600,2000,4800,1200}
     local activePage=1
     local function ShowPage(idx)
         activePage=idx
+        _rebuildRestorePage=idx  -- persist so the next rebuild restores this tab
         -- Win strip only visible for per-window pages 1-3
         winStrip:SetShown(idx<=3)
         -- Adjust contF top anchor (must ClearAllPoints first to avoid dual-anchor collapse)
@@ -3607,7 +3873,7 @@ local function BuildGUI()
         else
             contF:SetPoint("TOPLEFT",frame,"TOPLEFT",SIDE_W+2,-TITLE_H)
         end
-        contF:SetPoint("BOTTOMRIGHT",frame,"BOTTOMRIGHT",-1,1)
+        contF:SetPoint("BOTTOMRIGHT",frame,"BOTTOMRIGHT",-1,29)
         for i,pg in ipairs(pages) do pg:SetShown(i==idx) end; ScrollTo(0)
         local clipH=clip:GetHeight() or (H-TITLE_H-2); scBar:SetMinMaxValues(0,math.max(0,(pageH[idx] or 1200)-clipH))
         if idx==4 and rebuildUnifiedList then rebuildUnifiedList() end
@@ -3622,8 +3888,13 @@ local function BuildGUI()
     local sideItems={}
     local function UpdateSide()
         for _,btn in ipairs(sideItems) do
-            if btn._pageIdx==activePage then BD(btn,0.18,0.37,0.58,1,0,0,0); btn._lbl:SetTextColor(1,1,1,1)
-            else BD(btn,0.04,0.04,0.04,1,0.12,0.12,0.12); btn._lbl:SetTextColor(0.80,0.80,0.80,1) end
+            if btn._pageIdx==activePage then
+                BD(btn,0.14,0.11,0.01,1,0.55,0.44,0.0)
+                btn._lbl:SetTextColor(1.0,0.88,0.1,1)
+            else
+                BD(btn,0.04,0.04,0.04,1,0.08,0.08,0.08)
+                btn._lbl:SetTextColor(0.82,0.82,0.82,1)
+            end
         end
     end
     CT._switchToAllIcons = function() ShowPage(4); UpdateSide() end
@@ -3645,33 +3916,70 @@ local function BuildGUI()
         {type="gap"},
         {type="page",name="Profiles",pageIdx=9},
     }
-    local sy=0
+    -- "Categories" label at top of sidebar — matches CCT style
+    local catLabel=side:CreateFontString(nil,"OVERLAY")
+    catLabel:SetFont("Fonts\\ARIALN.TTF",10,"")
+    catLabel:SetTextColor(0.55,0.55,0.55,1)
+    catLabel:SetText("Categories")
+    catLabel:SetPoint("TOPLEFT",side,"TOPLEFT",12,-10)
+    local catSep=side:CreateTexture(nil,"ARTWORK")
+    catSep:SetColorTexture(0.15,0.15,0.15,1); catSep:SetHeight(1)
+    catSep:SetPoint("TOPLEFT",side,"TOPLEFT",0,-26); catSep:SetPoint("TOPRIGHT",side,"TOPRIGHT",0,-26)
+    local sy=30
     for _,item in ipairs(sidebarLayout) do
         if item.type=="header" then
-            local hdr=CreateFrame("Frame",nil,side,"BackdropTemplate"); hdr:SetPoint("TOPLEFT",side,"TOPLEFT",0,-sy); hdr:SetPoint("TOPRIGHT",side,"TOPRIGHT",0,-sy); hdr:SetHeight(22)
-            BD(hdr,0.03,0.03,0.03,1,0.12,0.12,0.12)
-            local stripe=hdr:CreateTexture(nil,"ARTWORK"); stripe:SetColorTexture(0.24,0.49,0.73,1); stripe:SetWidth(3); stripe:SetHeight(14); stripe:SetPoint("LEFT",hdr,"LEFT",0,0)
-            local hl=hdr:CreateFontString(nil,"OVERLAY"); hl:SetFont("Fonts\\ARIALN.TTF",9,""); hl:SetTextColor(0.55,0.55,0.55,1); hl:SetText(item.text); hl:SetPoint("LEFT",hdr,"LEFT",10,0)
-            sy=sy+24
+            -- CCT style: just a dim separator line + text, no frame background
+            local hdrSep=side:CreateTexture(nil,"ARTWORK")
+            hdrSep:SetColorTexture(0.12,0.12,0.12,1); hdrSep:SetHeight(1)
+            hdrSep:SetPoint("TOPLEFT",side,"TOPLEFT",0,-sy)
+            hdrSep:SetPoint("TOPRIGHT",side,"TOPRIGHT",0,-sy)
+            local hl=side:CreateFontString(nil,"OVERLAY")
+            hl:SetFont("Fonts\\ARIALN.TTF",8,"")
+            hl:SetTextColor(0.40,0.40,0.40,1)
+            hl:SetText(item.text)
+            hl:SetPoint("TOPLEFT",side,"TOPLEFT",10,-(sy+4))
+            sy=sy+18
         elseif item.type=="gap" then
-            sy=sy+6
+            sy=sy+4
         else
             local pi=item.pageIdx
-            local sb=CreateFrame("Button",nil,side,"BackdropTemplate"); sb:SetPoint("TOPLEFT",side,"TOPLEFT",0,-sy); sb:SetPoint("TOPRIGHT",side,"TOPRIGHT",0,-sy); sb:SetHeight(40)
-            BD(sb,0.04,0.04,0.04,1,0.12,0.12,0.12)
-            local stripe=sb:CreateTexture(nil,"ARTWORK"); stripe:SetColorTexture(0.24,0.49,0.73,1); stripe:SetWidth(3); stripe:SetHeight(20); stripe:SetPoint("LEFT",sb,"LEFT",0,0)
-            local sl2=sb:CreateFontString(nil,"OVERLAY"); sl2:SetFont("Fonts\\ARIALN.TTF",12,""); sl2:SetTextColor(0.8,0.8,0.8,1); sl2:SetText(item.name); sl2:SetPoint("LEFT",sb,"LEFT",12,0)
+            local sb=CreateFrame("Button",nil,side,"BackdropTemplate")
+            sb:SetPoint("TOPLEFT",side,"TOPLEFT",0,-sy)
+            sb:SetPoint("TOPRIGHT",side,"TOPRIGHT",0,-sy)
+            sb:SetHeight(36)
+            BD(sb,0.04,0.04,0.04,1,0.08,0.08,0.08)
+            -- No stripe — CCT style flat button
+            local sl2=sb:CreateFontString(nil,"OVERLAY")
+            sl2:SetFont("Fonts\\ARIALN.TTF",11,"")
+            sl2:SetTextColor(0.82,0.82,0.82,1)
+            sl2:SetText(item.name)
+            sl2:SetPoint("CENTER",sb,"CENTER",0,0)  -- centered like CCT
             sb._lbl=sl2; sb._pageIdx=pi
             sb:SetScript("OnClick",function() activePage=pi; ShowPage(pi); UpdateSide() end)
-            sb:SetScript("OnEnter",function() if pi~=activePage then sb:SetBackdropColor(0.10,0.10,0.10,1) end end)
-            sb:SetScript("OnLeave",function() if pi~=activePage then BD(sb,0.04,0.04,0.04,1,0.12,0.12,0.12) end end)
-            table.insert(sideItems,sb); sy=sy+40
+            sb:SetScript("OnEnter",function() if pi~=activePage then sb:SetBackdropColor(0.10,0.10,0.10,1); sl2:SetTextColor(1,1,1,1) end end)
+            sb:SetScript("OnLeave",function() if pi~=activePage then BD(sb,0.04,0.04,0.04,1,0.08,0.08,0.08); sl2:SetTextColor(0.82,0.82,0.82,1) end end)
+            table.insert(sideItems,sb); sy=sy+36
         end
     end
-    local bot=CreateFrame("Frame",nil,frame,"BackdropTemplate"); bot:SetPoint("BOTTOMLEFT",frame,"BOTTOMLEFT",1,1); bot:SetPoint("BOTTOMRIGHT",frame,"BOTTOMRIGHT",-1,1); bot:SetHeight(22); BD(bot,0.02,0.02,0.02,1,0,0,0)
-    local botLine=bot:CreateTexture(nil,"ARTWORK"); botLine:SetColorTexture(0.24,0.49,0.73,0.3); botLine:SetHeight(1); botLine:SetPoint("TOPLEFT",bot,"TOPLEFT"); botLine:SetPoint("TOPRIGHT",bot,"TOPRIGHT")
-    local botL=bot:CreateFontString(nil,"OVERLAY"); botL:SetFont("Fonts\\ARIALN.TTF",10,""); botL:SetTextColor(0.40,0.40,0.40,1); botL:SetPoint("CENTER",bot)
-    botL:SetText("/ct  -  /consumable  -  Right-click any icon to open settings")
+    local bot=CreateFrame("Frame",nil,frame,"BackdropTemplate"); bot:SetPoint("BOTTOMLEFT",frame,"BOTTOMLEFT",1,1); bot:SetPoint("BOTTOMRIGHT",frame,"BOTTOMRIGHT",-1,1); bot:SetHeight(28); bot:SetFrameStrata("FULLSCREEN_DIALOG"); bot:SetFrameLevel(100); BD(bot,0.02,0.02,0.02,1,0,0,0)
+    local botLine=bot:CreateTexture(nil,"ARTWORK"); botLine:SetColorTexture(1.0,0.82,0.0,0.45); botLine:SetHeight(1); botLine:SetPoint("TOPLEFT",bot,"TOPLEFT"); botLine:SetPoint("TOPRIGHT",bot,"TOPRIGHT")
+    -- Left: active profile status
+    local botStatus=bot:CreateFontString(nil,"OVERLAY"); botStatus:SetFont("Fonts\\ARIALN.TTF",10,""); botStatus:SetPoint("LEFT",bot,"LEFT",10,0)
+    local function UpdateBotStatus()
+        local name=CT.GetActiveProfile and CT:GetActiveProfile() or "Default"
+        botStatus:SetText("|cFFFFD200Profile:|r "..name.."   |cFF555555Right-click an icon to open settings|r")
+    end
+    UpdateBotStatus()
+    CT._updateBotStatus=UpdateBotStatus
+    -- Right: slash commands
+    local botCmds=bot:CreateFontString(nil,"OVERLAY"); botCmds:SetFont("Fonts\\ARIALN.TTF",10,""); botCmds:SetTextColor(0.32,0.32,0.32,1); botCmds:SetPoint("RIGHT",bot,"RIGHT",-10,0)
+    botCmds:SetText("/ct  |  /ct minimap  |  /ct debug")
+    -- Keep bot status in sync with profile changes
+    local _origBadge = CT._refreshProfileBadge
+    CT._refreshProfileBadge = function()
+        if _origBadge then _origBadge() end
+        if CT._updateBotStatus then CT._updateBotStatus() end
+    end
     ShowPage(_rebuildRestorePage or 1); _rebuildRestorePage=1; UpdateSide(); GUIFrame=frame
     local alreadyReg=false
     for _,v in ipairs(UISpecialFrames) do if v=="CTSettingsFrame" then alreadyReg=true; break end end
@@ -3681,13 +3989,29 @@ end
 
 local _rebuilding=false
 local _rebuildRestorePage = 1  -- which page to show after a rebuild
+local _savedGUIPoint = nil     -- saved screen position across rebuilds
 
 local function RebuildGUI()
     if _rebuilding then return end
     _rebuilding=true
+    -- Save the ACTUAL screen position and active page before destroying
+    if GUIFrame and GUIFrame:IsShown() then
+        local pt, _, rpt, x, y = GUIFrame:GetPoint(1)
+        if pt then
+            _savedGUIPoint = {pt=pt, rpt=rpt, x=x, y=y}
+        end
+    end
+    -- _rebuildRestorePage may have been set by caller; if not, keep current page
+    -- (activePage is a local inside BuildGUI so we track it via _rebuildRestorePage)
     if GUIFrame then GUIFrame:Hide(); GUIFrame=nil end
     if CTSettingsFrame then CTSettingsFrame:Hide(); CTSettingsFrame=nil end
     BuildGUI()
+    -- Restore saved position instead of snapping back to CENTER
+    if _savedGUIPoint and GUIFrame then
+        GUIFrame:ClearAllPoints()
+        GUIFrame:SetPoint(_savedGUIPoint.pt, UIParent, _savedGUIPoint.rpt,
+            _savedGUIPoint.x, _savedGUIPoint.y)
+    end
     GUIFrame:Show()
     C_Timer.After(0.1,function() _rebuilding=false end)
 end
