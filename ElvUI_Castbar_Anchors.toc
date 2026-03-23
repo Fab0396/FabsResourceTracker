@@ -1,0 +1,20 @@
+## Interface: 120001
+## Title: |cff00d4ffElvUI|r Castbar Anchors
+## Notes: Anchor your ElvUI castbars to any frame. Works standalone or as ElvUI plugin!
+## Author: Fab
+## Version: 2.39.0
+## OptionalDeps: ElvUI
+## SavedVariables: ElvUI_Castbar_Anchors_GlobalDB, ElvUI_Castbar_Anchors_Version
+## SavedVariablesPerCharacter: ElvUI_Castbar_Anchors_CharDB
+## IconTexture: Interface\Icons\spell_nature_astralrecal
+
+Libs\LibStub.lua
+Libs\CallbackHandler-1.0.lua
+Libs\LibElvUIPlugin-1.0.lua
+Libs\LibDBIcon-1.0\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+
+Core.lua
+Core_Plugin.lua
+Settings.lua
+Changelog.lua
